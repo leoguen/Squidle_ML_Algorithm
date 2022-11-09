@@ -22,7 +22,7 @@ from torchvision import datasets
 from torchvision import transforms
 from generate_torch_dataset import kelp_dataset_generator
 
-
+ROOT_DIR = r"/home/leo/Documents/IMAS/Code/Optuna/optuna_simple_prototype/"
 DEVICE = torch.device("cpu")
 BATCHSIZE = 128
 CLASSES = 10
@@ -37,7 +37,7 @@ def define_model(trial):
     n_layers = trial.suggest_int("n_layers", 1, 3)
     layers = []
 
-    in_features = 28 * 28
+    in_features = 24 * 24
     for i in range(n_layers):
         out_features = trial.suggest_int("n_units_l{}".format(i), 4, 128)
         layers.append(nn.Linear(in_features, out_features))
@@ -68,11 +68,14 @@ def get_kelp_dataset():
     return train_loader, valid_loader
 """
 def get_kelp_dataset():
-    kelp_dataset = kelp_dataset_generator(csv_file="Ecklonia.csv", root_dir="Ecklonia_dataset",
-    transform=transforms.ToTensor()) 
-    train_set, test_set = torch.utils.data.random_split(kelp_dataset,[1200, 300])
+    kelp_dataset = kelp_dataset_generator(
+                        csv_file=os.path.join(ROOT_DIR,"Pytorch_Ecklonia.csv"), 
+                        root_dir=os.path.join(ROOT_DIR,"Ecklonia_dataset"),
+                        transform=transforms.ToTensor()) 
+    train_set, test_set = torch.utils.data.random_split(kelp_dataset,[1200, 299])
     train_loader = torch.utils.data.DataLoader(DIR, batch_size=BATCHSIZE, shuffle=True)
     valid_loader = torch.utils.data.DataLoader(DIR, batch_size=BATCHSIZE, shuffle=True)
+    return train_loader, valid_loader
 
 def objective(trial):
 
