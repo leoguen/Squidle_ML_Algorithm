@@ -16,7 +16,7 @@ class kelp_dataset_generator(Dataset):
     def __getitem__(self, index):
         image_path = os.path.join(self.root_dir, self.annotations.iloc[index,0])
         image = io.imread(image_path)
-        y_label = torch.tensor(int(self.annotaions.iloc[index, 0]))
+        y_label = torch.tensor(int(self.annotations.iloc[index, 1]))
 
         if self.transform:
             image = self.transform(image)

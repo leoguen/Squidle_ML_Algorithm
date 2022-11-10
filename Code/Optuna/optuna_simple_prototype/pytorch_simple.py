@@ -21,15 +21,23 @@ import torch.utils.data
 from torchvision import datasets
 from torchvision import transforms
 from generate_torch_dataset import kelp_dataset_generator
+from datetime import datetime
+
+
+# Month abbreviation, day and year	
+DATE_AND_TIME = datetime.now().strftime("%b-%d-%Y-%H-%M")
+
 
 ROOT_DIR = r"/home/leo/Documents/IMAS/Code/Optuna/optuna_simple_prototype/"
 DEVICE = torch.device("cpu")
-BATCHSIZE = 128
-CLASSES = 10
+BATCHSIZE = 30
+CLASSES = 2
 DIR = os.getcwd()
 EPOCHS = 10
 N_TRAIN_EXAMPLES = BATCHSIZE * 30
 N_VALID_EXAMPLES = BATCHSIZE * 10
+# Month abbreviation, day and year	
+#DATE_AND_TIME = datetime.today().strftime("%b-%d-%Y")
 
 
 def define_model(trial):
@@ -37,7 +45,7 @@ def define_model(trial):
     n_layers = trial.suggest_int("n_layers", 1, 3)
     layers = []
 
-    in_features = 24 * 24
+    in_features = 24 * 24 * 3 #image size 24*24 pixel and 3 channel (RGB)
     for i in range(n_layers):
         out_features = trial.suggest_int("n_units_l{}".format(i), 4, 128)
         layers.append(nn.Linear(in_features, out_features))
@@ -73,8 +81,8 @@ def get_kelp_dataset():
                         root_dir=os.path.join(ROOT_DIR,"Ecklonia_dataset"),
                         transform=transforms.ToTensor()) 
     train_set, test_set = torch.utils.data.random_split(kelp_dataset,[1200, 299])
-    train_loader = torch.utils.data.DataLoader(DIR, batch_size=BATCHSIZE, shuffle=True)
-    valid_loader = torch.utils.data.DataLoader(DIR, batch_size=BATCHSIZE, shuffle=True)
+    train_loader = torch.utils.data.DataLoader(dataset=train_set, batch_size=BATCHSIZE, shuffle=True)
+    valid_loader = torch.utils.data.DataLoader(dataset=test_set, batch_size=BATCHSIZE, shuffle=True)
     return train_loader, valid_loader
 
 def objective(trial):
@@ -87,7 +95,7 @@ def objective(trial):
     lr = trial.suggest_float("lr", 1e-5, 1e-1, log=True)
     optimizer = getattr(optim, optimizer_name)(model.parameters(), lr=lr)
 
-    # Get the FashionMNIST dataset.
+    # Get the kelp dataset.
     train_loader, valid_loader = get_kelp_dataset()
 
     # Training of the model.
@@ -129,9 +137,24 @@ def objective(trial):
             raise optuna.exceptions.TrialPruned()
         
         # Save a trained model to a file.
-        with open("{}.pickle".format(trial.number), "wb") as fout:
+        with open("{}_trial.pickle".format(trial.number), "wb") as fout:
             pickle.dump(model, fout)
     return accuracy
+
+def only_keep_best_trial(best_trial_number, trial_value):
+    directory = os.fsencode(DIR)
+        
+    for file in os.listdir(directory):
+        filename = os.fsdecode(file)
+        if filename.endswith(".pickle"): 
+            if filename != best_trial_number + "_trial.pickle":
+                os.remove(filename)
+                print("Deleted: " + filename)
+            else: 
+                print("Kept and Renamed: " + filename)
+                os.rename(filename, 'best_trial_' + DATE_AND_TIME +"_"+ 
+                str(int(trial_value*100)))
+
 
 
 if __name__ == "__main__":
@@ -146,7 +169,7 @@ if __name__ == "__main__":
     print("  Number of pruned trials: ", len(pruned_trials))
     print("  Number of complete trials: ", len(complete_trials))
 
-    print("Best trial:")
+    print("Best trial: " + str(study.best_trial.number))
     trial = study.best_trial
 
     print("  Value: ", trial.value)
@@ -154,3 +177,7 @@ if __name__ == "__main__":
     print("  Params: ")
     for key, value in trial.params.items():
         print("    {}: {}".format(key, value))
+    
+    only_keep_best_trial(str(study.best_trial.number), trial.value)
+
+
