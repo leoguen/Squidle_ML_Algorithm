@@ -153,7 +153,7 @@ def only_keep_best_trial(best_trial_number, trial_value):
             else: 
                 print("Kept and Renamed: " + filename)
                 os.rename(filename, 'best_trial_' + DATE_AND_TIME +"_"+ 
-                str(int(trial_value*100)))
+                str(int(trial_value*100))+".pickle")
 
 
 
