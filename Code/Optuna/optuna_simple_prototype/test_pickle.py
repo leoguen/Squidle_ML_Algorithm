@@ -9,9 +9,19 @@ from torchvision import transforms
 from skimage import io
 import matplotlib as plt
 
-model = torch.load("best_trial_Nov-10-2022-11-29_88.pickle")
+PATH = "/home/leo/Documents/IMAS/Code/Optuna/optuna_simple_prototype/0_trial.pickle"
+
+# Loading model to compare the results
+model = pickle.load(open(PATH,'rb'))
+
+
+#model = torch.load("/home/leo/Documents/IMAS/Code/Optuna/optuna_simple_prototype/0_trial.pickle")
 model.eval()
 
+for param in model.parameters():
+    print(param)
+
+"""
 def get_prediction(image_bytes):
     tensor = transform_image(image_bytes=image_bytes)
     tensor=tensor.to(device)
@@ -30,6 +40,7 @@ with open(image_path, 'rb') as f:
 
     conf,y_pre=get_prediction(image_bytes=image_bytes)
     print(y_pre, ' at confidence score:{0:.2f}'.format(conf))
+"""
 
 """
 pickled_model = pickle.load(open('best_trial_Nov-10-2022-11-29_88.pickle', 'rb'))
