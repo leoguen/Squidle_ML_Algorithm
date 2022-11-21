@@ -8,18 +8,27 @@ from torchvision import datasets
 from torchvision import transforms
 from skimage import io
 import matplotlib as plt
+import os
 
-PATH = "/home/leo/Documents/IMAS/Code/Optuna/optuna_simple_prototype/0_trial.pickle"
+HERE = os.path.dirname(os.path.abspath(__file__))
+PATH = "Optuna/optuna_simple_prototype/best_trial_Nov-18-2022-15-54_88.pickle"
 
 # Loading model to compare the results
 model = pickle.load(open(PATH,'rb'))
 
 
 #model = torch.load("/home/leo/Documents/IMAS/Code/Optuna/optuna_simple_prototype/0_trial.pickle")
-model.eval()
-
+#model.eval()
+predictions=model.predict('/home/leo/Documents/IMAS/Code/Optuna/optuna_simple_prototype/Ecklonia_dataset/Ecklonia_Tasmania201006_0.jpg')
+print(predictions)
 for param in model.parameters():
     print(param)
+
+
+
+
+
+
 
 """
 def get_prediction(image_bytes):

@@ -20,7 +20,8 @@ import torch.optim as optim
 import torch.utils.data
 from torchvision import datasets
 from torchvision import transforms
-from generate_torch_dataset import kelp_dataset_generator
+#from generate_torch_dataset import kelp_dataset_generator
+from generate_torch_dataset_https import kelp_dataset_generator_https
 from datetime import datetime
 
 
@@ -28,7 +29,7 @@ from datetime import datetime
 DATE_AND_TIME = datetime.now().strftime("%b-%d-%Y-%H-%M")
 
 
-ROOT_DIR = r"/home/leo/Documents/IMAS/Code/Optuna/optuna_simple_prototype/"
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEVICE = torch.device("cpu")
 BATCHSIZE = 30
 CLASSES = 2
@@ -59,28 +60,12 @@ def define_model(trial):
 
     return nn.Sequential(*layers)
 
-"""
 def get_kelp_dataset():
-    # Load FashionMNIST dataset.
-    train_loader = torch.utils.data.DataLoader(
-        datasets.FashionMNIST(DIR, train=True, download=True, transform=transforms.ToTensor()),
-        batch_size=BATCHSIZE,
-        shuffle=True,
-    )
-    valid_loader = torch.utils.data.DataLoader(
-        datasets.FashionMNIST(DIR, train=False, transform=transforms.ToTensor()),
-        batch_size=BATCHSIZE,
-        shuffle=True,
-    )
-
-    return train_loader, valid_loader
-"""
-def get_kelp_dataset():
-    kelp_dataset = kelp_dataset_generator(
-                        csv_file=os.path.join(ROOT_DIR,"Pytorch_Ecklonia.csv"), 
+    kelp_dataset = kelp_dataset_generator_https(
+                        csv_file=os.path.join(ROOT_DIR,"annotations-u45-Lanterns_shallow_2012_kelp_only_annotations_21-30m-Tomas-4058-53007f4f89e836d1c9bc-dataframe.csv"), 
                         root_dir=os.path.join(ROOT_DIR,"Ecklonia_dataset"),
                         transform=transforms.ToTensor()) 
-    train_set, test_set = torch.utils.data.random_split(kelp_dataset,[1200, 299])
+    train_set, test_set = torch.utils.data.random_split(kelp_dataset,[1200, 300])
     train_loader = torch.utils.data.DataLoader(dataset=train_set, batch_size=BATCHSIZE, shuffle=True)
     valid_loader = torch.utils.data.DataLoader(dataset=test_set, batch_size=BATCHSIZE, shuffle=True)
     return train_loader, valid_loader
