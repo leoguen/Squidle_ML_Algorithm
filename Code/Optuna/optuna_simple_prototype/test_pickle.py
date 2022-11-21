@@ -9,20 +9,46 @@ from torchvision import transforms
 from skimage import io
 import matplotlib as plt
 import os
+from io import BytesIO
+from PIL import Image
+import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PATH = "Optuna/optuna_simple_prototype/best_trial_Nov-18-2022-15-54_88.pickle"
+print(HERE)
+#PATH = "Optuna/optuna_simple_prototype/best_trial_Nov-18-2022-15-54_88.pickle"
+PATH = '/home/leo/Documents/IMAS/Code/Optuna/optuna_simple_prototype/Ecklonia_dataset/Ecklonia_Tasmania201006_0.jpg'
+IMAGE = np.asarray(Image.open(HERE + '/Ecklonia_dataset/Ecklonia_Tasmania201006_0.jpg'))
+NP_IMAGE = torch.from_numpy(IMAGE)
 
+
+#NP_IMAGE = torch.tensor(IMAGE)
 # Loading model to compare the results
-model = pickle.load(open(PATH,'rb'))
+model = pickle.load(open(HERE + '/best_trial_Nov-18-2022-15-54_88.pickle','rb'))
+
+
+# set to evaluation mode
+model.eval()
+
+# reshape sample to (batch-size x width x height) but batch-size is 1 because you probably want to predict just one image at a time in real-life usage
+sample = torch.reshape(NP_IMAGE, ( 24, 24, 3, 1))
+
+prediction = model(sample)
+
+
+
+
+
 
 
 #model = torch.load("/home/leo/Documents/IMAS/Code/Optuna/optuna_simple_prototype/0_trial.pickle")
 #model.eval()
-predictions=model.predict('/home/leo/Documents/IMAS/Code/Optuna/optuna_simple_prototype/Ecklonia_dataset/Ecklonia_Tasmania201006_0.jpg')
-print(predictions)
-for param in model.parameters():
-    print(param)
+
+
+#(model.predict(IMAGE) > 0.5).astype("int32")
+#predictions=model.predict(IMAGE)
+#print(predictions)
+#for param in model.parameters():
+#    print(param)
 
 
 
