@@ -20,15 +20,15 @@ import torch.optim as optim
 import torch.utils.data
 from torchvision import datasets
 from torchvision import transforms
-#from generate_torch_dataset import kelp_dataset_generator
-from generate_torch_dataset_https import kelp_dataset_generator_https
+from generate_torch_dataset import kelp_dataset_generator
+#from generate_torch_dataset_https import kelp_dataset_generator_https
 from datetime import datetime
 
 
 # Month abbreviation, day and year	
 DATE_AND_TIME = datetime.now().strftime("%b-%d-%Y-%H-%M")
 
-
+HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEVICE = torch.device("cpu")
 BATCHSIZE = 30
@@ -61,11 +61,11 @@ def define_model(trial):
     return nn.Sequential(*layers)
 
 def get_kelp_dataset():
-    kelp_dataset = kelp_dataset_generator_https(
-                        csv_file=os.path.join(ROOT_DIR,"annotations-u45-Lanterns_shallow_2012_kelp_only_annotations_21-30m-Tomas-4058-53007f4f89e836d1c9bc-dataframe.csv"), 
+    kelp_dataset = kelp_dataset_generator(
+                        csv_file=os.path.join(ROOT_DIR,"Pytorch_Ecklonia.csv"), 
                         root_dir=os.path.join(ROOT_DIR,"Ecklonia_dataset"),
                         transform=transforms.ToTensor()) 
-    train_set, test_set = torch.utils.data.random_split(kelp_dataset,[1200, 300])
+    train_set, test_set = torch.utils.data.random_split(kelp_dataset,[1200, 299])
     train_loader = torch.utils.data.DataLoader(dataset=train_set, batch_size=BATCHSIZE, shuffle=True)
     valid_loader = torch.utils.data.DataLoader(dataset=test_set, batch_size=BATCHSIZE, shuffle=True)
     return train_loader, valid_loader
@@ -122,29 +122,30 @@ def objective(trial):
             raise optuna.exceptions.TrialPruned()
         
         # Save a trained model to a file.
-        with open("{}_trial.pickle".format(trial.number), "wb") as fout:
+        #torch.save(model.state_dict(), "Optuna/optuna_simple_prototype/Trials/{}_trial.pickle".format(trial.number))
+        
+        with open(HERE + "/Trials/{}_trial.pickle".format(trial.number), "wb") as fout:
             pickle.dump(model, fout)
     return accuracy
 
 def only_keep_best_trial(best_trial_number, trial_value):
-    directory = os.fsencode(DIR)
-        
+    directory = HERE + '/Trials/'
     for file in os.listdir(directory):
         filename = os.fsdecode(file)
         if filename.endswith(".pickle"): 
-            if filename != best_trial_number + "_trial.pickle":
-                os.remove(filename)
+            if filename != best_trial_number + '_trial.pickle':
+                os.remove(HERE + '/Trials/' + filename)
                 print("Deleted: " + filename)
             else: 
                 print("Kept and Renamed: " + filename)
-                os.rename(filename, 'best_trial_' + DATE_AND_TIME +"_"+ 
+                os.rename(HERE + '/Trials/' + filename, HERE +'/Trials/Saved/best_trial_' + DATE_AND_TIME +"_"+ 
                 str(int(trial_value*100))+".pickle")
 
 
 
 if __name__ == "__main__":
     study = optuna.create_study(direction="maximize")
-    study.optimize(objective, n_trials=100, timeout=600)
+    study.optimize(objective, n_trials=2, timeout=600)
 
     pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
     complete_trials = study.get_trials(deepcopy=False, states=[TrialState.COMPLETE])

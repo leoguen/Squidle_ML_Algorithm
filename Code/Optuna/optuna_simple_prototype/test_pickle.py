@@ -1,91 +1,49 @@
 import pickle
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-import torch.utils.data
-from torchvision import datasets
-from torchvision import transforms
-from skimage import io
-import matplotlib as plt
+import torch.nn.functional as nnf
 import os
-from io import BytesIO
 from PIL import Image
 import numpy as np
+from os import listdir
+from os.path import isfile, join
+
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-print(HERE)
-#PATH = "Optuna/optuna_simple_prototype/best_trial_Nov-18-2022-15-54_88.pickle"
-PATH = '/home/leo/Documents/IMAS/Code/Optuna/optuna_simple_prototype/Ecklonia_dataset/Ecklonia_Tasmania201006_0.jpg'
-IMAGE = np.asarray(Image.open(HERE + '/Ecklonia_dataset/Ecklonia_Tasmania201006_0.jpg'))
-NP_IMAGE = torch.from_numpy(IMAGE)
 
+# Get list of all images in a folder
+onlyfiles = [f for f in listdir(HERE + '/Ecklonia_dataset') if isfile(join(HERE + '/Ecklonia_dataset', f))]
 
-#NP_IMAGE = torch.tensor(IMAGE)
-# Loading model to compare the results
-model = pickle.load(open(HERE + '/best_trial_Nov-18-2022-15-54_88.pickle','rb'))
+# Load model that is saved in pickle
+loaded_model = pickle.load(open('Optuna/optuna_simple_prototype/Trials/Saved/best_trial_Nov-22-2022-12-29_89.pickle', 'rb'))
+loaded_model.eval()
 
+# Iterate through list of filenames and make predictions for each
+for filename in onlyfiles:
+    np_image = np.array(Image.open(HERE + '/Ecklonia_dataset/' + filename))
+    tensor_image = torch.from_numpy(np_image)
 
-# set to evaluation mode
-model.eval()
-
-# reshape sample to (batch-size x width x height) but batch-size is 1 because you probably want to predict just one image at a time in real-life usage
-sample = torch.reshape(NP_IMAGE, ( 24, 24, 3, 1))
-
-prediction = model(sample)
-
-
-
-
-
-
-
-#model = torch.load("/home/leo/Documents/IMAS/Code/Optuna/optuna_simple_prototype/0_trial.pickle")
-#model.eval()
-
-
-#(model.predict(IMAGE) > 0.5).astype("int32")
-#predictions=model.predict(IMAGE)
-#print(predictions)
-#for param in model.parameters():
-#    print(param)
-
-
-
-
-
-
-
-"""
-def get_prediction(image_bytes):
-    tensor = transform_image(image_bytes=image_bytes)
-    tensor=tensor.to(device)
-    output = model.forward(tensor)
+    # Reshape sample to (batch-size, width x height) but batch-size is 1 
+    tensor_image = torch.reshape(tensor_image, ( 1, 1728))
     
-    probs = torch.nn.functional.softmax(output, dim=1)
-    conf, classes = torch.max(probs, 1)
-    return conf.item(), index_to_breed[classes.item()]
+    # Convert to float32 as default is float64 and does not align with model
+    tensor_image = tensor_image.to(torch.float32)
 
-image_path="/content/test/06b3a4da7b96404349e51551bf611551.jpg"
-image = plt.imread(image_path)
-plt.imshow(image)
-
-with open(image_path, 'rb') as f:
-    image_bytes = f.read()
-
-    conf,y_pre=get_prediction(image_bytes=image_bytes)
-    print(y_pre, ' at confidence score:{0:.2f}'.format(conf))
-"""
-
-"""
-pickled_model = pickle.load(open('best_trial_Nov-10-2022-11-29_88.pickle', 'rb'))
-classifier_code = "ECK" 
-# load the model from disk
-image = io.imread("Ecklonia_dataset/Ecklonia_Tasmania201006_0.jpg")
-#loaded_model = pickle.load(open(filename, 'rb'))
-#result = loaded_model.score(X_test, Y_test)
-#print(result)
-
-prob = pickled_model.predict(image)
-print(prob)
-"""
+    # Make prediction based on 
+    predictions = loaded_model(tensor_image)
+    labels = torch.argmax(predictions, 1)
+    #print(predictions)
+    #_, prob = torch.max(predictions, dim=1)
+    prob = nnf.softmax(predictions, dim=0)
+    top_p, top_class = prob.topk(1, dim = 1)
+    print(filename, predictions)
+    lst_prob = prob.tolist()
+    
+    '''
+    if top_class == 0: 
+        print('Not Ecklonia Radiata with ' + str(float(top_p[0]*100)) + ' percent certainty')
+    elif top_class[0] == 1:
+        print('Ecklonia Radiata with ' + str(float(top_p[0]*100)) + ' percent certainty')
+    else: 
+        print('The code does not work properly')
+    '''
