@@ -16,7 +16,7 @@ no_others = 0
 onlyfiles = [f for f in listdir(HERE + '/Ecklonia_dataset') if isfile(join(HERE + '/Ecklonia_dataset', f))]
 
 # Load model that is saved in pickle
-loaded_model = pickle.load(open('Optuna/optuna_simple_prototype/Trials/Saved/best_trial_Nov-22-2022-14-59_78.pickle', 'rb'))
+loaded_model = pickle.load(open('/home/leo/Documents/IMAS/Code/Optuna/optuna_simple_prototype/Trials/Saved/best_trial_Nov-22-2022-12-29_89.pickle', 'rb'))
 loaded_model.eval()
 
 # Iterate through list of filenames and make predictions for each
@@ -40,10 +40,10 @@ for filename in onlyfiles:
     print(filename, predictions, labels)
     lst_prob = prob.tolist()
     
-    if top_class == 0: 
+    if labels[0] == 0: 
         print('Not Ecklonia Radiata with ' + str(float(top_p[0]*100)) + ' percent certainty')
         no_others +=1 
-    elif top_class[0] == 1:
+    elif labels[0] == 1:
         print('Ecklonia Radiata with ' + str(float(top_p[0]*100)) + ' percent certainty')
         no_ecklonia +=1
     else: 

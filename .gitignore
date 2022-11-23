@@ -5,3 +5,6 @@ Ecklonia_dataset/
 sqbot/
 API_TOKEN.txt
 Trials/
+models/
+runs/
+Ecklonia_Mix/
