@@ -66,6 +66,7 @@ def get_kelp_dataset():
                         root_dir=os.path.join(ROOT_DIR,"Ecklonia_dataset"),
                         transform=transforms.ToTensor()) 
     train_set, test_set = torch.utils.data.random_split(kelp_dataset,[1200, 299])
+    
     train_loader = torch.utils.data.DataLoader(dataset=train_set, batch_size=BATCHSIZE, shuffle=True)
     valid_loader = torch.utils.data.DataLoader(dataset=test_set, batch_size=BATCHSIZE, shuffle=True)
     return train_loader, valid_loader
@@ -124,22 +125,24 @@ def objective(trial):
         # Save a trained model to a file.
         #torch.save(model.state_dict(), "Optuna/optuna_simple_prototype/Trials/{}_trial.pickle".format(trial.number))
         
-        with open(HERE + "/Trials/{}_trial.pickle".format(trial.number), "wb") as fout:
-            pickle.dump(model, fout)
+        #with open(HERE + "/Trials/{}_trial.pickle".format(trial.number), "wb") as fout:
+        #    pickle.dump(model, fout)
+        model_scripted = torch.jit.script(model) # Export to TorchScript
+        model_scripted.save(HERE + "/Trials/{}_trial.pth".format(trial.number)) # Save
     return accuracy
 
 def only_keep_best_trial(best_trial_number, trial_value):
     directory = HERE + '/Trials/'
     for file in os.listdir(directory):
         filename = os.fsdecode(file)
-        if filename.endswith(".pickle"): 
-            if filename != best_trial_number + '_trial.pickle':
+        if filename.endswith(".pth"): 
+            if filename != best_trial_number + '_trial.pth':
                 os.remove(HERE + '/Trials/' + filename)
                 print("Deleted: " + filename)
             else: 
                 print("Kept and Renamed: " + filename)
                 os.rename(HERE + '/Trials/' + filename, HERE +'/Trials/Saved/best_trial_' + DATE_AND_TIME +"_"+ 
-                str(int(trial_value*100))+".pickle")
+                str(int(trial_value*100))+".pth")
 
 
 
