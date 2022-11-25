@@ -8,3 +8,7 @@ Trials/
 models/
 runs/
 Ecklonia_Mix/
+test.csv
+id_list.txt
+rest_id_list.txt
+annotation_set.json
