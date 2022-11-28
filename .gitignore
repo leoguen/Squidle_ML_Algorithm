@@ -1,5 +1,6 @@
 Orga/
 images_*/
+images/
 Optuna/optuna-examples/
 Ecklonia_dataset/
 sqbot/
@@ -12,3 +13,4 @@ test.csv
 id_list.txt
 rest_id_list.txt
 annotation_set.json
+Full_Annotation_List.csv
