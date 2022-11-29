@@ -115,7 +115,7 @@ class modify_annotation_set():
             
 
         CSV_FILE_DF.to_csv(HERE+'/Annotation_Sets/'+ str(len(CSV_FILE_DF.index))+'_NORMALIZED_FULL_ANNOTATION_LIST.csv',index=False)
-        print('Saved {} entries with filename: '.format(distr_data_df['distr_num'].sum(), + str(len(CSV_FILE_DF.index))+'_NORMALIZED_FULL_ANNOTATION_LIST.csv'))
+        print('Saved {} entries with filename: '.format(distr_data_df['distr_num'].sum(), str(len(CSV_FILE_DF.index))+'_NORMALIZED_FULL_ANNOTATION_LIST.csv'))
 
 
 

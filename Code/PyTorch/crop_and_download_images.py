@@ -57,8 +57,11 @@ class crop_download_images():
         original_image = cv2.imdecode(array_image, -1) # 'Load it as it is'
         
         # get dimension of image and multiply with point coordinates
-        x = original_image.shape[1]*csv_file_df.point_x[index]
-        y = original_image.shape[0]*csv_file_df.point_y[index]
+        #print(csv_file_df.at[index, 'point_x'])
+        #print(original_image.shape[1])
+        #print(int(original_image.shape[1])*float(csv_file_df.at[index, 'point_x']))
+        x = original_image.shape[1]*float(csv_file_df.at[index, 'point_x'])
+        y = original_image.shape[0]*float(csv_file_df.at[index, 'point_y'])
         # crop around coordinates
         cropped_image = original_image[int(y-(BOUNDING_BOX[0]/2)):int(y+(BOUNDING_BOX[0]/2)), int(x-(BOUNDING_BOX[1]/2)):int(x+(BOUNDING_BOX[1]/2))]
         
@@ -67,7 +70,7 @@ class crop_download_images():
 if __name__ == "__main__":
     BOUNDING_BOX = [24,24]
     HERE = os.path.dirname(os.path.abspath(__file__))
-    LIST_NAME = '/Annotation_Sets/annotations-u45-Lanterns_shallow_2012_kelp_only_annotations_21-30m-Tomas-4058-53007f4f89e836d1c9bc-dataframe.csv'
+    LIST_NAME = '/Annotation_Sets/407827_NORMALIZED_FULL_ANNOTATION_LIST.csv'
 
     data = crop_download_images()
 
