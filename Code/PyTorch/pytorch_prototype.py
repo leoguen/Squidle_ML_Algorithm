@@ -7,6 +7,7 @@ import os
 import pickle
 import matplotlib.pyplot as plt
 import numpy as np
+import time
 
 
 # PyTorch TensorBoard support
@@ -21,20 +22,38 @@ transform = transforms.Compose(
 
 transform = transforms.ToTensor()
 HERE = os.path.dirname(os.path.abspath(__file__))
-BATCH_SIZE = 4
+BATCH_SIZE = 32
 SHUFFLE = True
-NUM_WORKERS = 1
-EPOCHS = 30
+NUM_WORKERS = 8
+EPOCHS = 5
+
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(DEVICE)
 
 
 # Create datasets for training & validation, download if necessary
-training_set = torchvision.datasets.ImageFolder(HERE + '/Ecklonia_dataset/Training/', transform=transform, )
+training_set = torchvision.datasets.ImageFolder(HERE + '/first_images/Training/', transform=transform)
 
-validation_set = torchvision.datasets.ImageFolder(HERE + '/Ecklonia_dataset/Training/', transform=transform)
+validation_set = torchvision.datasets.ImageFolder(HERE + '/first_images/Validation/', transform=transform)
 
 # Create data loaders for our datasets; shuffle for training, not for validation
 training_loader = torch.utils.data.DataLoader(training_set, BATCH_SIZE, NUM_WORKERS)
+
 validation_loader = torch.utils.data.DataLoader(validation_set, BATCH_SIZE, NUM_WORKERS)
+
+starttime = time.time()
+print('Dataset is being pushed to GPU')
+
+for inputs, labels in training_loader:
+    inputs = inputs.to('cuda')
+    labels = labels.to('cuda')
+
+for inputs, labels in validation_loader:
+    inputs = inputs.to('cuda')
+    labels = labels.to('cuda')
+
+totaltime = round((time.time() - starttime), 2)
+print('Dataset pushed in {} s'.format(totaltime))
 
 # Class labels
 classes = ('Ecklonia', 'Others')
@@ -84,8 +103,12 @@ class Kelp_Identifier(nn.Module):
         x = self.fc3(x)
         return x
     
-
+starttime = time.time()
+print('Model is pushed to GPU')
 model = Kelp_Identifier()
+model = model.to(DEVICE)
+totaltime = round((time.time() - starttime), 2)
+print('Done in {} s'.format(totaltime))
 
 loss_fn = torch.nn.CrossEntropyLoss()
 
@@ -100,9 +123,10 @@ def train_one_epoch(epoch_index, tb_writer):
     # iter(training_loader) so that we can track the batch
     # index and do some intra-epoch reporting
     for i, data in enumerate(training_loader):
+        
         # Every data instance is an input + label pair
         inputs, labels = data
-        
+
         # Zero your gradients for every batch!
         optimizer.zero_grad()
         
@@ -148,7 +172,10 @@ for epoch in range(EPOCHS):
     running_vloss = 0.0
     for i, vdata in enumerate(validation_loader):
         vinputs, vlabels = vdata
+        vinputs = vinputs.to(DEVICE)
         voutputs = model(vinputs)
+        voutputs = voutputs.to(DEVICE)
+        vlabels = vlabels.to(DEVICE)
         vloss = loss_fn(voutputs, vlabels)
         running_vloss += vloss
     
@@ -165,6 +192,6 @@ for epoch in range(EPOCHS):
     if avg_vloss < best_vloss:            
         best_vloss = avg_vloss
         model_path = HERE + '/models/model_{}_{}_{}.pth'.format(timestamp, epoch_number, int(best_vloss*100))
-        model_scripted = torch.jit.script(model) # Export to TorchScript
-        model_scripted.save(model_path) # Save
+        #model_scripted = torch.jit.script(model) # Export to TorchScript
+        #model_scripted.save(model_path) # Save
     epoch_number += 1

@@ -44,7 +44,7 @@ class modify_annotation_set():
         print('Deleted {} rows; Unscorable.'.format(shape_before-CSV_FILE_DF.shape[0]))
         shape_before = CSV_FILE_DF.shape[0]
         
-        CSV_FILE_DF = CSV_FILE_DF.loc[CSV_FILE_DF['point_media_key'].str.startswith('https')==False]
+        CSV_FILE_DF = CSV_FILE_DF.loc[CSV_FILE_DF['point_media_path_best'].str.startswith('https')==True]
 
         print('Deleted {} rows; wrong URL.'.format(shape_before-CSV_FILE_DF.shape[0]))
         shape_before = CSV_FILE_DF.shape[0]
@@ -55,15 +55,16 @@ class modify_annotation_set():
         print('Deleted {} rows; empty values for point_y.'.format(shape_before-CSV_FILE_DF.shape[0]))
         shape_before = CSV_FILE_DF.shape[0]
 
-        CSV_FILE_DF = CSV_FILE_DF[CSV_FILE_DF['point_pose_alt'].apply(lambda x: str(x).replace('.', '', 1).isdigit())]
-        print('Deleted {} rows; missplaced rows.'.format(shape_before-CSV_FILE_DF.shape[0]))
-        shape_before = CSV_FILE_DF.shape[0]
+        #CSV_FILE_DF = CSV_FILE_DF[CSV_FILE_DF['point_pose_alt'].apply(lambda x: str(x).replace('.', '', 1).isdigit())]
+        #print('Deleted {} rows; missplaced rows.'.format(shape_before-CSV_FILE_DF.shape[0]))
+        #shape_before = CSV_FILE_DF.shape[0]
         
         print('The csv file consists of {} entries, {} were deleted. \nThe file is being saved as {}.'.format(CSV_FILE_DF.shape[0], (og_shape-CSV_FILE_DF.shape[0]), str(len(CSV_FILE_DF.index))+'_REVIEWED_ANNOTATION_LIST.csv'))
 
+        print('Not being saved to reduce space.')
         # Update the index after deleting entries 
-        CSV_FILE_DF.reset_index(drop=True, inplace=True)
-        CSV_FILE_DF.to_csv(HERE+'/Annotation_Sets/'+ str(len(CSV_FILE_DF.index))+'_REVIEWED_ANNOTATION_LIST.csv',index=False)
+        #CSV_FILE_DF.reset_index(drop=True, inplace=True)
+        #CSV_FILE_DF.to_csv(HERE+'/Annotation_Sets/'+ str(len(CSV_FILE_DF.index))+'_REVIEWED_ANNOTATION_LIST.csv',index=False)
         
         return CSV_FILE_DF
     
