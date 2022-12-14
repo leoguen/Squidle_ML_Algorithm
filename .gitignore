@@ -18,3 +18,5 @@ SQ/API_Dataset/Full_Annotation_List.csv
 Annotation_Sets/
 Validation/
 24_images/
+*.jpg
+*images/
