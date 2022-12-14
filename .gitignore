@@ -19,4 +19,4 @@ Annotation_Sets/
 Validation/
 24_images/
 *.jpg
-*images/
+**/*images/
