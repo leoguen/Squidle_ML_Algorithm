@@ -1,22 +1,26 @@
+# My personal stuff
 Orga/
-images_*/
-images/
-Optuna/optuna-examples/
-Ecklonia_dataset/
-sqbot/
+Course_Chris_Jackett/
+Code/Optuna/
 API_TOKEN.txt
+
+# No trials or runs
 Trials/
-models/
 runs/
-Ecklonia_Mix/
+
+
+# No Annotation sets
+Annotation_Sets/
+annotation_set.json
+*/Full_Annotation_List.csv
+
+# No images
+images_*/
+*.jpg
+**/*images/
+
+# Special exception
 test.csv
 id_list.txt
 rest_id_list.txt
-annotation_set.json
-Full_Annotation_List.csv
-SQ/API_Dataset/Full_Annotation_List.csv
-Annotation_Sets/
-Validation/
-24_images/
-*.jpg
-**/*images/
+
