@@ -10,19 +10,29 @@ from os import listdir
 from os.path import isfile, join
 import io
 import os
+import access_sq_images as sq
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+annotation_path = '/home/leo/Documents/IMAS/Code/PyTorch/Annotation_Sets/1195753_REVIEWED_ANNOTATION_LIST.csv'
+bounding_box = [24, 24]
+save_path = HERE + '/random_validation' 
 
 # Get list of models
 model_list = [f for f in listdir(HERE + '/models') if isfile(join(HERE + '/models', f))]
 # Delete all models with wrong ending
 model_list = [val for val in model_list if val.endswith(".pth")]
 print('This is the modellist: {}'.format(model_list))
+model_list = model_list[0]
 
-eck_files = [f for f in listdir(HERE + '/Validation/Ecklonia') if isfile(join(HERE + '/Validation/Ecklonia', f))]
-other_files = [f for f in listdir(HERE + '/Validation/Others') if isfile(join(HERE + '/Validation/Others', f))]
+csv_file = sq.random_csv_except(annotation_path, 0.01)
+sq.create_directory_structure(bounding_box=bounding_box, save_path=save_path)
 
-both_dir = [[eck_files, '/Validation/Ecklonia/'], [other_files, '/Validation/Others/']]
+sq.download_images(save_path=save_path, bounding_box=bounding_box, csv_file=csv_file)
+
+eck_files = [f for f in listdir(save_path + '/Ecklonia') if isfile(join(save_path + '/Ecklonia', f))]
+other_files = [f for f in listdir(save_path + '/Others') if isfile(join(save_path + '/Others', f))]
+
+both_dir = [[eck_files, save_path + '/Ecklonia'], [other_files, save_path + '/Others']]
 
 
 # Used to classify success of model
@@ -39,7 +49,6 @@ def load_model(model_name):
         loaded_model = torch.jit.load(HERE + '/models/' + model_name)
     # For Model trained on GPU and executed on CPU
     except:
-        #buffer.seek(0)
         loaded_model = torch.jit.load(HERE + '/models/' + model_name, map_location='cpu')
 
     #loaded_model = torch.jit.load(HERE + '/models/model_20221123_173129_0_68.pth')
@@ -48,7 +57,6 @@ def load_model(model_name):
 
 
 # Iterate through list of filenames and make predictions for each
-
 for index, model_name in enumerate(model_list):
     loaded_model = load_model(model_name)
     print('Validating model: {}'.format(model_name))
@@ -65,7 +73,6 @@ for index, model_name in enumerate(model_list):
             except:
                 #print('Problem with image {}'.format(filename) )
                 continue
-            
             
             try:
                 # Make prediction based on loaded model
