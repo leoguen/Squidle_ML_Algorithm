@@ -61,10 +61,10 @@ class modify_annotation_set():
         
         print('The csv file consists of {} entries, {} were deleted. \nThe file is being saved as {}.'.format(CSV_FILE_DF.shape[0], (og_shape-CSV_FILE_DF.shape[0]), str(len(CSV_FILE_DF.index))+'_REVIEWED_ANNOTATION_LIST.csv'))
 
-        print('Not being saved to reduce space.')
+        #print('Not being saved to reduce space.')
         # Update the index after deleting entries 
-        #CSV_FILE_DF.reset_index(drop=True, inplace=True)
-        #CSV_FILE_DF.to_csv(HERE+'/Annotation_Sets/'+ str(len(CSV_FILE_DF.index))+'_REVIEWED_ANNOTATION_LIST.csv',index=False)
+        CSV_FILE_DF.reset_index(drop=True, inplace=True)
+        CSV_FILE_DF.to_csv(HERE+'/Annotation_Sets/'+ str(len(CSV_FILE_DF.index))+'_REVIEWED_ANNOTATION_LIST.csv',index=False)
         
         return CSV_FILE_DF
     

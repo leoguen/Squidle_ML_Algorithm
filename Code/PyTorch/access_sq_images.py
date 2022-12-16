@@ -7,10 +7,9 @@ import numpy as np
 import random
 
 def random_csv_except(filename, percentage):
-    csv_file = pd.read_csv(filename,header=0, skiprows=lambda i: i>0 and random.random() > percentage)
+    random.seed(4321)
+    csv_file = pd.read_csv(filename,header=0, skiprows=lambda i: i>0 and random.random() >= percentage)
     return csv_file
-
-
 
 def create_directory(save_path, dir_name):    
     if os.path.exists(save_path+dir_name) == True:
@@ -19,7 +18,7 @@ def create_directory(save_path, dir_name):
         os.mkdir(save_path+dir_name)
 
 def create_directory_structure(bounding_box, save_path):
-    structure_list = ['/'+str(bounding_box[0])+'_images', '/'+str(bounding_box[0])+'_images/Ecklonia', '/'+str(bounding_box[0])+'_images/Others']
+    structure_list = ['','/Ecklonia', '/Others']
     for i in structure_list:
         create_directory(save_path, i)
 
@@ -54,7 +53,7 @@ def crop_image(save_path, csv_file, index, bounding_box, prob_list):
     #create name for the cropped image
     file_name = str(csv_file.label_name[index].replace('[.]', '_').replace('(', '_').replace(')', '_').replace(' ', '_')) +"_"+ str(csv_file.point_id[index]) +".jpg"
 
-    file_path_and_name = save_path +'/'+str(bounding_box[0])+'_images/' + label + '/' + file_name
+    file_path_and_name = save_path +'/'+ label + '/' + file_name
     try:
         # download the image, convert it to a NumPy array, and then read
         # it into OpenCV format

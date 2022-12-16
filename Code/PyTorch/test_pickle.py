@@ -13,23 +13,30 @@ import os
 import access_sq_images as sq
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-annotation_path = '/home/leo/Documents/IMAS/Code/PyTorch/Annotation_Sets/1195753_REVIEWED_ANNOTATION_LIST.csv'
+annotation_path = '/home/ubuntu/IMAS/Code/PyTorch/Annotation_Sets/1195753_REVIEWED_ANNOTATION_LIST.csv'
 bounding_box = [24, 24]
-save_path = HERE + '/random_validation' 
+save_path = HERE + '/random_validation/'+str(bounding_box[0])+'_images'
 
 # Get list of models
 model_list = [f for f in listdir(HERE + '/models') if isfile(join(HERE + '/models', f))]
 # Delete all models with wrong ending
 model_list = [val for val in model_list if val.endswith(".pth")]
 print('This is the modellist: {}'.format(model_list))
-model_list = model_list[0]
 
+# Get random patch from dataset
 csv_file = sq.random_csv_except(annotation_path, 0.01)
-sq.create_directory_structure(bounding_box=bounding_box, save_path=save_path)
 
+
+# Create directory structure
+sq.create_directory_structure(bounding_box=bounding_box, save_path=save_path)
+#/home/ubuntu/IMAS/Code/PyTorch/random_validation/24_images/Ecklonia
+# Download images from random csv file
 sq.download_images(save_path=save_path, bounding_box=bounding_box, csv_file=csv_file)
 
+
+# Get list of all Ecklonia entries
 eck_files = [f for f in listdir(save_path + '/Ecklonia') if isfile(join(save_path + '/Ecklonia', f))]
+# Get list of all Other entries
 other_files = [f for f in listdir(save_path + '/Others') if isfile(join(save_path + '/Others', f))]
 
 both_dir = [[eck_files, save_path + '/Ecklonia'], [other_files, save_path + '/Others']]
@@ -44,13 +51,15 @@ results=[[None]*6]*len(model_list)
 
 def load_model(model_name):
     # For Model trained on CPU and executed on CPU
+    loaded_model = torch.jit.load(HERE + '/models/' + model_name, map_location='cpu')
+    '''
     try:
         # Load model that is saved in pth
         loaded_model = torch.jit.load(HERE + '/models/' + model_name)
     # For Model trained on GPU and executed on CPU
     except:
         loaded_model = torch.jit.load(HERE + '/models/' + model_name, map_location='cpu')
-
+    '''
     #loaded_model = torch.jit.load(HERE + '/models/model_20221123_173129_0_68.pth')
     loaded_model.eval()
     return loaded_model
@@ -66,7 +75,7 @@ for index, model_name in enumerate(model_list):
             
             transform = transforms.ToTensor()
 
-            transformed_image = transform(Image.open(HERE + path + filename))
+            transformed_image = transform(Image.open(path +'/'+ filename))
             try:
                 # Reshape to fit model input
                 reshaped_image = torch.reshape(transformed_image, (1, 1728))
@@ -83,6 +92,7 @@ for index, model_name in enumerate(model_list):
                 cnn_reshaped_image = torch.reshape(transformed_image, (1, 3, 24, 24))
                 # Make prediction based on loaded model
                 predictions = loaded_model(cnn_reshaped_image)
+            
             img_index += 1
             # Use softmax to level data
             #sm = torch.nn.Softmax()
@@ -93,16 +103,16 @@ for index, model_name in enumerate(model_list):
 
             if top_class == 1: 
                 #print('Not Ecklonia Radiata with ' + str(int(top_p*100)) + ' percent certainty')
-                if path == '/Validation/Ecklonia/':
+                if filename.startswith('Ecklonia'):
                     falseNeg +=1
-                elif path == '/Validation/Others/':
+                elif not(filename.startswith('Ecklonia')):
                     trueNeg += 1
                 else: print('Weird file name.')
             elif top_class == 0:
                 #print('Ecklonia Radiata with ' + str(int(top_p*100)) + ' percent certainty')
-                if path == '/Validation/Ecklonia/':
+                if filename.startswith('Ecklonia'):
                     truePos +=1
-                elif path == '/Validation/Others/':
+                elif not(filename.startswith('Ecklonia')):
                     falsePos += 1
                 else: print('Weird file name.')
             else: 
