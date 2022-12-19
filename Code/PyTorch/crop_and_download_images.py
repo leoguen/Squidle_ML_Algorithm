@@ -84,12 +84,13 @@ class crop_download_images():
         return file_path_and_name, cropped_image, prob_list
 
 if __name__ == "__main__":
-    download_list = [[16,16],[32,32], [64,64], [128,128], [256,256], [512,512]]
+    #download_list = [[16,16],[32,32], [64,64], [128,128], [256,256], [512,512]]
+    download_list = [[24, 24]]
     for bounding_box in download_list:
         #bounding_box = [128,128]
         print(bounding_box)
         here = os.path.dirname(os.path.abspath(__file__))
-        save_path = here
+        save_path = '/pvol'
         list_name = '/Annotation_Sets/41250_NORMALIZED_FULL_ANNOTATION_LIST.csv'
 
         data = crop_download_images()
