@@ -23,6 +23,7 @@ model_list = [f for f in listdir(HERE + '/models') if isfile(join(HERE + '/model
 model_list = [val for val in model_list if val.endswith(".pth")]
 print('This is the modellist: {}'.format(model_list))
 
+'''
 # Get random patch from dataset
 csv_file = sq.random_csv_except(annotation_path, 0.01)
 
@@ -32,7 +33,7 @@ sq.create_directory_structure(bounding_box=bounding_box, save_path=save_path)
 #/home/ubuntu/IMAS/Code/PyTorch/random_validation/24_images/Ecklonia
 # Download images from random csv file
 sq.download_images(save_path=save_path, bounding_box=bounding_box, csv_file=csv_file)
-
+'''
 
 # Get list of all Ecklonia entries
 eck_files = [f for f in listdir(save_path + '/Ecklonia') if isfile(join(save_path + '/Ecklonia', f))]

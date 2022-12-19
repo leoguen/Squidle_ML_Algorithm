@@ -7,6 +7,7 @@ API_TOKEN.txt
 # No trials or runs
 Trials/
 runs/
+logs/
 
 
 # No Annotation sets
