@@ -85,7 +85,7 @@ class crop_download_images():
 
 if __name__ == "__main__":
     #download_list = [[16,16],[32,32], [64,64], [128,128], [256,256], [512,512]]
-    download_list = [[24, 24]]
+    download_list = [[24, 24], [224,224], [240,240], [272,272], [288,288], [304,304], [320,320], [336,336] ]
     for bounding_box in download_list:
         #bounding_box = [128,128]
         print(bounding_box)

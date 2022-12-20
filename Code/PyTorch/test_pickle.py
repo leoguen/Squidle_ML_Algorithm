@@ -15,13 +15,22 @@ import access_sq_images as sq
 HERE = os.path.dirname(os.path.abspath(__file__))
 annotation_path = '/home/ubuntu/IMAS/Code/PyTorch/Annotation_Sets/1195753_REVIEWED_ANNOTATION_LIST.csv'
 bounding_box = [24, 24]
-save_path = HERE + '/random_validation/'+str(bounding_box[0])+'_images'
+save_path = '/pvol/random_validation/'+str(bounding_box[0])+'_images'
 
-# Get list of models
+# Get list of models in same file tree
 model_list = [f for f in listdir(HERE + '/models') if isfile(join(HERE + '/models', f))]
 # Delete all models with wrong ending
 model_list = [val for val in model_list if val.endswith(".pth")]
-print('This is the modellist: {}'.format(model_list))
+model_list = [HERE + '/models/' +s for s in model_list]
+
+
+# Get models from /pvol/
+for root, dirs, files in os.walk('/pvol/models/', topdown=False):
+    for name in files:
+        if name.endswith('.pt'):
+            model_list.append(root + name)
+
+#print('This is the modellist: {}'.format(model_list))
 
 '''
 # Get random patch from dataset
@@ -51,24 +60,35 @@ falseNeg = 0
 results=[[None]*6]*len(model_list)
 
 def load_model(model_name):
-    # For Model trained on CPU and executed on CPU
-    loaded_model = torch.jit.load(HERE + '/models/' + model_name, map_location='cpu')
-    '''
-    try:
-        # Load model that is saved in pth
-        loaded_model = torch.jit.load(HERE + '/models/' + model_name)
-    # For Model trained on GPU and executed on CPU
-    except:
-        loaded_model = torch.jit.load(HERE + '/models/' + model_name, map_location='cpu')
-    '''
-    #loaded_model = torch.jit.load(HERE + '/models/model_20221123_173129_0_68.pth')
-    loaded_model.eval()
-    return loaded_model
+    check = 0
+    if model_name.endswith('.pth'):
+        # For Model trained on CPU and executed on CPU
+        loaded_model = torch.jit.load(model_name, map_location='cpu')
+        loaded_model.eval()
+        check = 1
+        
+    elif model_name.endswith('.pt'):
+        check = 1
+        print(model_name)
+        loaded_model = torch.load(model_name)
+        loaded_model.eval()
+
+        print('Functionality needs to be added.')
+    else:
+        check = 0
+        loaded_model = 0
+        print('Weird fileformat.')
+
+    
+    return check, loaded_model
 
 
 # Iterate through list of filenames and make predictions for each
 for index, model_name in enumerate(model_list):
-    loaded_model = load_model(model_name)
+    check, loaded_model = load_model(model_name)
+    if check == 0:
+        print('model {} could not be loaded.'.format(model_name))
+        continue
     print('Validating model: {}'.format(model_name))
     img_index = 0
     for dir_name, path in both_dir:
@@ -87,8 +107,9 @@ for index, model_name in enumerate(model_list):
             try:
                 # Make prediction based on loaded model
                 predictions = loaded_model(reshaped_image)
+                print('Index {} out of {}.'.format(img_index, len(eck_files)+len(other_files)),  end="\r", flush=True)
             except: # image needs to be reshaped for CNN
-                print('CNN index {} out of {}.'.format(img_index, len(eck_files)+len(other_files)))
+                print('CNN index {} out of {}.'.format(img_index, len(eck_files)+len(other_files)),  end="\r", flush=True)
                 # Reshape to fit model input
                 cnn_reshaped_image = torch.reshape(transformed_image, (1, 3, 24, 24))
                 # Make prediction based on loaded model
@@ -118,10 +139,10 @@ for index, model_name in enumerate(model_list):
                 else: print('Weird file name.')
             else: 
                 print('The code does not work properly')
-    
     accuracy = (trueNeg+truePos)/(trueNeg+truePos+falseNeg+falsePos)
+    print('{} accuracy: {}'.format(model_name, accuracy))
     results[index] = model_name, truePos, trueNeg, falsePos, falseNeg, accuracy
-    truePos, trueNeg, falsePos, falseNeg = 0, 0, 0, 0
+    accuracy, truePos, trueNeg, falsePos, falseNeg = 0, 0, 0, 0, 0
 
 results = sorted(results, key=lambda x: x[5], reverse=True)
 for i in range(len(model_list)):
