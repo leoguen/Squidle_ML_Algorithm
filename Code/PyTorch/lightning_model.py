@@ -123,7 +123,14 @@ def cli_main():
     # ------------
     tb_logger = pl_loggers.TensorBoardLogger(save_dir="/pvol/logs/")
     if torch.cuda.is_available(): 
-        trainer = pl.Trainer(accelerator='gpu', devices=1, max_epochs=100, logger=tb_logger, default_root_dir='/pvol/')
+        trainer = pl.Trainer(
+                accelerator='gpu', 
+                devices=1, 
+                max_epochs=100, 
+                logger=tb_logger, 
+                default_root_dir='/pvol/',
+                auto_lr_find=True, 
+                auto_scale_batch_size=True)
     else:
         trainer = pl.Trainer.from_argparse_args(args)
     trainer.fit(model, train_loader, val_loader)
@@ -133,6 +140,7 @@ def cli_main():
     # ------------
     trainer.test(ckpt_path='best', dataloaders=test_loader)
 
+    # Should work with pytorch-lightning >= 1.8.4
     #model_scripted = torch.jit.script(model)
     #print('Model is being saved!')
     #model_scripted.save("pvol/Trials/{}_trial.pth".format('test')) # Save
