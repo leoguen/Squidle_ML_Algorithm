@@ -12,11 +12,6 @@ from torchvision import transforms
 from torch.utils.tensorboard import SummaryWriter
 from pytorch_lightning import loggers as pl_loggers
 
-# ------------
-# global
-# ------------
-#img_size = 16
-
 class KelpClassifier(pl.LightningModule):
     def __init__(self, hidden_dim=128, learning_rate=1e-3):
         super().__init__()
@@ -52,6 +47,7 @@ class KelpClassifier(pl.LightningModule):
         x, y = batch
         y_hat = self(x)
         loss = F.cross_entropy(y_hat, y)
+        batch_idx = image_to_tb(self, batch, batch_idx)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -76,6 +72,22 @@ class KelpClassifier(pl.LightningModule):
         parser.add_argument('--learning_rate', type=float, default=0.0001)
         return parser
 
+def image_to_tb(self, batch, batch_idx):
+    
+    if batch_idx == 0:
+        tensorboard = self.logger.experiment
+        others_batch_images = []
+        ecklonia_batch_images = []
+        for index, image in enumerate(batch[0]):
+            if batch[1][index] == 1: others_batch_images.append(image) 
+            else: ecklonia_batch_images.append(image)
+        others_grid = torchvision.utils.make_grid(others_batch_images)
+        ecklonia_grid = torchvision.utils.make_grid(ecklonia_batch_images)
+        tensorboard.add_image('Ecklonia images', ecklonia_grid, batch_idx)
+        tensorboard.add_image('Other images', others_grid, batch_idx)
+        tensorboard.close()
+        #tensorboard.add_image(batch[0])
+    return batch_idx
 
 def cli_main():
     #writer = SummaryWriter(log_dir='/pvol/runs/')
@@ -99,7 +111,7 @@ def cli_main():
     # Create datasets for training & validation, download if necessary
     full_set = torchvision.datasets.ImageFolder('/pvol' + '/' + str(img_size)+ '_images/', transform= transforms.ToTensor()) #, transform=transform
 
-    training_set, validation_set, test_set = torch.utils.data.random_split(full_set,[0.7, 0.2, 0.1], generator=torch.Generator().manual_seed(42))
+    training_set, validation_set, test_set = torch.utils.data.random_split(full_set,[0.8, 0.1, 0.1], generator=torch.Generator().manual_seed(42))
     
     # Create data loaders for our datasets; shuffle for training and for validation
     train_loader = torch.utils.data.DataLoader(training_set, batch_size=args.batch_size, shuffle=True, num_workers=os.cpu_count())
@@ -121,18 +133,21 @@ def cli_main():
     # ------------
     # training
     # ------------
-    tb_logger = pl_loggers.TensorBoardLogger(save_dir="/pvol/logs/")
+    tb_logger = pl_loggers.TensorBoardLogger(save_dir="/pvol/logs/lightning_logs", name=str(img_size)+'_Image_Size')
     if torch.cuda.is_available(): 
+        max_epochs= 50
         trainer = pl.Trainer(
                 accelerator='gpu', 
                 devices=1, 
-                max_epochs=100, 
+                max_epochs=max_epochs, 
                 logger=tb_logger, 
                 default_root_dir='/pvol/',
                 auto_lr_find=True, 
-                auto_scale_batch_size=True)
+                auto_scale_batch_size=True, 
+                log_every_n_steps=max_epochs)
     else:
         trainer = pl.Trainer.from_argparse_args(args)
+
     trainer.fit(model, train_loader, val_loader)
 
     # ------------
@@ -146,6 +161,6 @@ def cli_main():
     #model_scripted.save("pvol/Trials/{}_trial.pth".format('test')) # Save
 
 if __name__ == '__main__':
-    img_list = [256, 512]
+    img_list = [16, 24, 32, 64, 128, 224, 240, 256, 272, 288, 304, 320, 336, 512]
     for img_size in img_list:
         cli_main()
