@@ -16,14 +16,27 @@ class KelpClassifier(pl.LightningModule):
     def __init__(self, hidden_dim=128, learning_rate=1e-3):
         super().__init__()
         # init a pretrained resnet
-        backbone = models.resnet50(weights="DEFAULT")
-        num_filters = backbone.fc.in_features
+        #backbone = models.resnet50(weights="DEFAULT")
+        #backbone = models.googlenet(weights='DEFAULT')
+        #backbone = models.convnext_large(weights='DEFAULT') # num_filters = 1536
+        #backbone = models.convnext_small(weights='DEFAULT') # num_filters = 768
+        #backbone = models.resnext101_64x4d(weights='DEFAULT')
+        #backbone = models.efficientnet_v2_l(weights='DEFAULT') # num_filters = 1280
+        #backbone = models.vit_h_14(weights='DEFAULT')# num_filters = 1280
+        #backbone = models.regnet_x_32gf(weights='DEFAULT') 
+        #backbone = models.swin_v2_b(weights='DEFAULT')#num_filters = 1024
+        
+        backbone = getattr(models, backbone_name)()
+
+        num_filters = no_filters
+        if num_filters == 0:
+            num_filters = backbone.fc.in_features
+        
         layers = list(backbone.children())[:-1]
         self.feature_extractor = nn.Sequential(*layers)
-
-        # use the pretrained model to classify cifar-10 (10 image classes)
         num_target_classes = 2
-        self.classifier = nn.Linear(num_filters, num_target_classes)
+        
+        self.classifier = nn.Linear(num_filters,  num_target_classes)
         self.save_hyperparameters()
 
         '''
@@ -109,7 +122,7 @@ def cli_main():
     # ------------
 
     # Create datasets for training & validation, download if necessary
-    full_set = torchvision.datasets.ImageFolder('/pvol' + '/' + str(img_size)+ '_images/', transform= transforms.ToTensor()) #, transform=transform
+    full_set = torchvision.datasets.ImageFolder('/pvol' + '/' + str(img_size)+ '_images/', transform= transforms.Compose([transforms.ToTensor()])) #, transform=transform
 
     training_set, validation_set, test_set = torch.utils.data.random_split(full_set,[0.8, 0.1, 0.1], generator=torch.Generator().manual_seed(42))
     
@@ -133,9 +146,9 @@ def cli_main():
     # ------------
     # training
     # ------------
-    tb_logger = pl_loggers.TensorBoardLogger(save_dir="/pvol/logs/lightning_logs", name=str(img_size)+'_Image_Size')
+    tb_logger = pl_loggers.TensorBoardLogger(save_dir="/pvol/logs/lightning_logs", name=str(img_size)+'_'+backbone_name+'_Image_Size')
     if torch.cuda.is_available(): 
-        max_epochs= 50
+        max_epochs= 30
         trainer = pl.Trainer(
                 accelerator='gpu', 
                 devices=1, 
@@ -161,6 +174,23 @@ def cli_main():
     #model_scripted.save("pvol/Trials/{}_trial.pth".format('test')) # Save
 
 if __name__ == '__main__':
-    img_list = [16, 24, 32, 64, 128, 224, 240, 256, 272, 288, 304, 320, 336, 512]
+    #img_list = [16, 24, 32, 64, 128, 224, 240, 256, 272, 288, 304, 320, 336, 512]
+    img_list = [240, 288, 336]
+
+    model_specs = [
+        ['resnet50', 0],
+        ['googlenet', 0], 
+        ['convnext_large', 1536], 
+        ['convnext_small', 768], 
+        ['resnext101_64x4d', 0], 
+        ['efficientnet_v2_l', 1280], 
+        ['vit_h_14', 1280], 
+        ['regnet_x_32gf', 0], 
+        ['swin_v2_b', 1024]]
     for img_size in img_list:
-        cli_main()
+        for backbone_name, no_filters in model_specs:
+            try:
+                cli_main()
+            except:
+                print('!!! Error \n   Problem with img_size {} and backbone {}'.format(img_size, backbone_name))
+                continue
