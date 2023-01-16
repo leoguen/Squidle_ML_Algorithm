@@ -15,83 +15,126 @@ class crop_download_images():
             os.mkdir(save_path+dir_name)
     
     def create_directory_structure(self, save_path):
-        structure_list = ['/'+str(bounding_box[0])+'_images', '/'+str(bounding_box[0])+'_images/Ecklonia', '/'+str(bounding_box[0])+'_images/Others']
+        structure_list = [
+            '/'+str(bounding_box[0])+'_images', 
+            '/'+str(bounding_box[0])+'_images/Ecklonia', 
+            '/'+str(bounding_box[0])+'_images/Others',
+            '/'+str(bounding_box[0])+'_images/Padding',
+            '/'+str(bounding_box[0])+'_images/Padding/Ecklonia',
+            '/'+str(bounding_box[0])+'_images/Padding/Others']
         for i in structure_list:
             crop_download_images.create_directory(save_path, i)
     
-    def download_images(self, save_path, here,BOUNDING_BOX, LIST_NAME):
-        # Used to split up data in Validation and Training
-        csv_file_df= pd.read_csv(here + LIST_NAME)
+    def download_images(self, save_path, here,bounding_box, list_name):
+        # Used to split up data in Ecklonia and Others
+        csv_file_df= pd.read_csv(here + list_name)
         csv_file_df.columns = csv_file_df.columns.str.replace('[.]', '_')
-        prob_list = []
+        empty_prob_list, crop_prob_list, saving_prob_list = [], [], []
         for index in range(len(csv_file_df.index)):
             
-            image_path, cropped_image, prob_list = self.crop_image(save_path,csv_file_df, index, BOUNDING_BOX, prob_list)
+            image_path, cropped_image, empty_prob_list, crop_prob_list = self.crop_image(save_path,csv_file_df, index, bounding_box, empty_prob_list, crop_prob_list)
             #save image 
             try:
                 cv2.imwrite(image_path, cropped_image)
-                print("{} | {} Saved: {}".format(bounding_box[0], index, image_path))
+                print("{} | {} Saved: {}".format(bounding_box[0], (index+2), image_path))
             except:
                 print('Problem with saving index {}'.format(index))
-                prob_list.append([index, csv_file_df.point_media_path_best[index]])
-                df = pd.DataFrame(prob_list)
-                df.to_csv('Problematic_files.csv', index=False) 
+                saving_prob_list.append([(index+2), csv_file_df.point_media_path_best[index]])
+                df = pd.DataFrame(saving_prob_list)
+                df.to_csv(save_path + '/' + str(bounding_box[0])+'_images/'+ str(bounding_box[0]) +'_Saving_Problem.csv', index=False) 
         
-        print('There were problems with the following indeces: {}'.format(prob_list))
-        df = pd.DataFrame(prob_list)
-        df.to_csv('Problematic_files.csv', index=False) 
+            df = pd.DataFrame(empty_prob_list)
+            df.to_csv(save_path + '/' + str(bounding_box[0])+'_images/'+ str(bounding_box[0]) +'_Empty_Problem.csv', index=False) 
+            df.to_csv(save_path + '/' + str(bounding_box[0])+'_images/'+ str(bounding_box[0]) +'_Crop_Problem.csv', index=False) 
+        print('Problematic files have been saved for {}'.format(bounding_box))
 
-    def crop_image(self, save_path, csv_file_df, index, bounding_box, prob_list):
-        #dir_name = '/Training/'
+    def get_crop_points(self, x, y, original_image, bounding_box):
+        crop_dist = bounding_box[1]/2 
+        if x - crop_dist < 0: x0 = 0
+        else: x0 = x - crop_dist
+
+        if y - crop_dist < 0: y0 = 0
+        else: y0 = y - crop_dist
+
+        if x + crop_dist > original_image.shape[1]: x1 = original_image.shape[1]
+        else: x1 = x + crop_dist
+
+        if y + crop_dist > original_image.shape[0]: y1 = original_image.shape[0]
+        else: y1 = y + crop_dist
+
+        return  int(x0), int(x1), int(y0), int(y1)
+
+    def crop_image(self, save_path, csv_file_df, index, bounding_box, empty_prob_list, crop_prob_list):
         if csv_file_df.label_name[index] == "Ecklonia radiata":
             label = 'Ecklonia'
         else:
             label = 'Others'
         #create name for the cropped image
-        file_name = str(csv_file_df.label_name[index].replace('[.]', '_').replace('(', '_').replace(')', '_').replace(' ', '_')) +"_"+ str(csv_file_df.point_id[index]) +".jpg"
-
-        file_path_and_name = save_path +'/'+str(bounding_box[0])+'_images/' + label + '/' + file_name
+        
+        cropped_image = []
         try:
             # download the image, convert it to a NumPy array, and then read
             # it into OpenCV format
             resp = urllib.request.urlopen(csv_file_df.point_media_path_best[index])
-            array_image = np.asarray(bytearray(resp.read()), dtype=np.uint8)
-            cropped_image = []
+            array_image = np.asarray(bytearray(resp.read()), dtype=np.uint8)    
             
             # Check if image is not empty
             if array_image.size != 0:
-                #if array_image.shape != BOUNDING_BOX:
-                #    print(array_image.size)
-                #    print(array_image.shape)
-                #    array_image = np.pad(array_image, BOUNDING_BOX - array_image.shape, 'constant', constant_values=(0))
                 original_image = cv2.imdecode(array_image, -1) # 'Load it as it is'
                 x = original_image.shape[1]*float(csv_file_df.at[index, 'point_x'])
                 y = original_image.shape[0]*float(csv_file_df.at[index, 'point_y'])
+                
+                # get crop coordinates
+                x0, x1, y0, y1 = self.get_crop_points(x, y, original_image, bounding_box)
                 # crop around coordinates
-                cropped_image = original_image[int(y-(bounding_box[0]/2)):int(y+(bounding_box[0]/2)), int(x-(bounding_box[1]/2)):int(x+(bounding_box[1]/2))]
+                #int(y-(bounding_box[0]/2)):int(y+(bounding_box[0]/2)), int(x-(bounding_box[1]/2)):int(x+(bounding_box[1]/2))
+                cropped_image = original_image[y0:y1, x0:x1]
 
                 if list(cropped_image.shape[0:2]) != bounding_box: # Image is not as big as Bounding Box
-                    print('Image is wrong size, ID: {}'.format(index))
-                    prob_list.append([index, csv_file_df.point_media_path_best[index]])
+                    print('Image needs to be padded, Shape {}, ID: {}'.format(cropped_image.shape[0:2],index))
+                    label = 'Padding/' + label
             else: # Image is empty
-                print('Problem with downloading id {}'.format(index))
-                prob_list.append([index, csv_file_df.point_media_path_best[index]])
+                print('Image is empty ID: {}'.format(index))
+                empty_prob_list.append([(index+2), csv_file_df.point_media_path_best[index]])
         except: # Some problem was raised while handling the image
-            print('Problem with cropping id {}'.format(index))
-            prob_list.append([index, csv_file_df.point_media_path_best[index]])
-
+            print('General problem with cropping ID: {}'.format(index))
+            crop_prob_list.append([(index+2), csv_file_df.point_media_path_best[index]])
         
-        return file_path_and_name, cropped_image, prob_list
+        file_name = str(csv_file_df.label_name[index].replace('[.]', '_').replace('(', '_').replace(')', '_').replace(' ', '_')) +"_"+ str(csv_file_df.point_id[index]) +".jpg"
+
+        file_path_and_name = save_path +'/'+str(bounding_box[0])+'_images/' + label + '/' + file_name
+        
+        return file_path_and_name, cropped_image, empty_prob_list, crop_prob_list
 
 if __name__ == "__main__":
-    #download_list = [[16,16],[32,32], [64,64], [128,128], [256,256], [512,512]]
-    download_list = [[288,288], [304,304], [320,320], [336,336] ]
+    download_list = [#[16,16],
+    #[32,32],
+    #[24,24],
+    [288,288],
+    [304,304],
+    [320,320],
+    [336,336],
+    [400,400],
+    [448,448],
+    [480,480], 
+    [512,512], 
+    [544,544], 
+    [576,576], 
+    [608,608],
+    [128,128],
+    [224,224],
+    [230,230],
+    [240,240],
+    [256,256],
+    [272,272], 
+    [64,64],
+    ]
+    #download_list = [[336,336]]
     for bounding_box in download_list:
-        #bounding_box = [128,128]
         print(bounding_box)
         here = os.path.dirname(os.path.abspath(__file__))
         save_path = '/pvol'
-        list_name = '/Annotation_Sets/41250_NORMALIZED_FULL_ANNOTATION_LIST.csv'
+        list_name = '/Annotation_Sets/106844_NORMALIZED_FULL_ANNOTATION_LIST.csv'
 
         data = crop_download_images()
 

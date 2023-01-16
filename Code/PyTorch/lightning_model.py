@@ -11,26 +11,110 @@ import torchvision.models as models
 from torchvision import transforms
 from torch.utils.tensorboard import SummaryWriter
 from pytorch_lightning import loggers as pl_loggers
+from torch.utils.data.dataset import Dataset
+import glob
+import cv2
+import random
+
+class UniformDataset(Dataset):
+    def __init__(self, img_size):
+        self.imgs_path = '/pvol' + '/' + str(img_size)+ '_images/'
+        file_list = [self.imgs_path + 'Others', self.imgs_path + 'Ecklonia']
+        #print(file_list)
+        self.data = []
+        for class_path in file_list:
+            class_name = class_path.split("/")[-1]
+            for img_path in glob.glob(class_path + "/*.jpg"):
+                self.data.append([img_path, class_name])
+        #print(self.data)
+        self.class_map = {"Ecklonia" : 0, "Others": 1}
+        #self.img_dim = (img_size, img_size)
+        
+    def __len__(self):
+        return len(self.data)    
+    
+    def __getitem__(self, idx):
+        img_path, class_name = self.data[idx]
+        img = cv2.imread(img_path)
+        class_id = self.class_map[class_name]
+        img_tensor = transforms.ToTensor()(img)
+        class_id = torch.tensor(class_id)
+        return img_tensor, class_id
+
+class MixedDataset(Dataset):
+    def __init__(self, img_size, test_perc):
+        self.data = []
+        self.imgs_path = '/pvol' + '/' + str(img_size)+ '_images/'
+        self.pad_imgs_path = '/pvol' + '/' + str(img_size)+ '_images/Padding/'
+        #####################
+        # Get unpadded images
+        #####################
+        file_list = [self.imgs_path + 'Others', self.imgs_path + 'Ecklonia']
+        if test_perc*0.04*2*100 < 1:eck_perc = 1
+        else: eck_perc = test_perc*0.04*2*100
+        unpad_perc = [test_perc*100, eck_perc]
+        for class_path in file_list:
+            class_name = class_path.split("/")[-1]
+            for img_path in glob.glob(class_path + "/*.jpg"):
+                if class_name == 'Others': i = 0
+                else: i = 1
+                if random.randint(0,99) < int(unpad_perc[i]):
+                    self.data.append([img_path, class_name])
+        oth_count, eck_count = 0, 0
+        for entry in self.data:
+            oth_count += entry.count('Others')
+            eck_count += entry.count('Ecklonia')
+        print('Others: {}, Ecklonia: {}'.format(oth_count, eck_count))
+        #####################
+        # Get padded images
+        #####################
+        file_list = [self.pad_imgs_path + 'Others', self.pad_imgs_path + 'Ecklonia']
+
+        oth_pad_files = (len([name for name in os.listdir(file_list[0]) if os.path.isfile(os.path.join(file_list[0], name))])) 
+        eck_pad_files =(len([name for name in os.listdir(file_list[1]) if os.path.isfile(os.path.join(file_list[1], name))]))
+
+        len_both = (oth_pad_files+eck_pad_files)
+        adap_len_both = len_both*test_perc
+        oth_perc = int(test_perc*100)
+        if int(test_perc*0.04*100) == 0: eck_perc =1
+        else: eck_perc = int(test_perc*0.04*100)
+        #eck_perc = int(((adap_len_both)/(2*eck_pad_files))*100)
+        #oth_perc = int((adap_len_both/(2*oth_pad_files))*100)
+        pad_oth_count = 0
+        pad_eck_count = 0
+        perc = [oth_perc, eck_perc]
+        for idx, class_path in enumerate(file_list):
+            class_name = class_path.split("/")[-1]
+            for img_path in glob.glob(class_path + "/*.jpg"):
+                if random.randint(0,99) < perc[idx]:
+                    if class_name == 'Others': pad_oth_count +=1
+                    else: pad_eck_count +=1 
+                    self.data.append([img_path, class_name])
+        self.class_map = {"Ecklonia" : 0, "Others": 1}
+        print('The dataset comprises of: \nUniform Ecklonia {}\nUniform Others {} \nPadded Ecklonia {}\nPadded Others {}\nDataset length {}'.format(eck_count, oth_count, pad_eck_count, pad_oth_count, len(self.data) ))
+    
+    def __len__(self):
+        return len(self.data)    
+    
+    def __getitem__(self, idx):
+        img_path, class_name = self.data[idx]
+        img = cv2.imread(img_path)
+        class_id = self.class_map[class_name]
+        img_tensor = transforms.ToTensor()(img)
+        class_id = torch.tensor(class_id)
+        return img_tensor, class_id
+
 
 class KelpClassifier(pl.LightningModule):
     def __init__(self, hidden_dim=128, learning_rate=1e-3):
         super().__init__()
-        # init a pretrained resnet
-        #backbone = models.resnet50(weights="DEFAULT")
-        #backbone = models.googlenet(weights='DEFAULT')
-        #backbone = models.convnext_large(weights='DEFAULT') # num_filters = 1536
-        #backbone = models.convnext_small(weights='DEFAULT') # num_filters = 768
-        #backbone = models.resnext101_64x4d(weights='DEFAULT')
-        #backbone = models.efficientnet_v2_l(weights='DEFAULT') # num_filters = 1280
-        #backbone = models.vit_h_14(weights='DEFAULT')# num_filters = 1280
-        #backbone = models.regnet_x_32gf(weights='DEFAULT') 
-        #backbone = models.swin_v2_b(weights='DEFAULT')#num_filters = 1024
-        
-        backbone = getattr(models, backbone_name)()
-
-        num_filters = no_filters
-        if num_filters == 0:
-            num_filters = backbone.fc.in_features
+        # init a pretrained resnet       
+        #backbone = getattr(models, backbone_name)(weights='DEFAULT')
+        backbone = models.regnet_x_32gf(weights ='DEFAULT')
+        num_filters = 2520
+        #num_filters = no_filters
+        #if num_filters == 0:
+        #    num_filters = backbone.fc.in_features
         
         layers = list(backbone.children())[:-1]
         self.feature_extractor = nn.Sequential(*layers)
@@ -40,8 +124,7 @@ class KelpClassifier(pl.LightningModule):
         self.save_hyperparameters()
 
         '''
-        self.l1 = torch.nn.Linear(img_size
- * img_size * 3, self.hparams.hidden_dim)
+        self.l1 = torch.nn.Linear(img_size * img_size * 3, self.hparams.hidden_dim)
         self.l2 = torch.nn.Linear(self.hparams.hidden_dim, 2)
         '''
 
@@ -74,6 +157,17 @@ class KelpClassifier(pl.LightningModule):
         y_hat = self(x)
         loss = F.cross_entropy(y_hat, y)
         self.log('test_loss', loss)
+    
+    def predict_step(self, batch, batch_idx):
+        # This can be used for implementation
+        x, y = batch
+        y_hat = self(x)
+        #loss = F.cross_entropy(y_hat, y)
+        prob = F.softmax(y_hat, dim=1)
+        top_p, top_class = prob.topk(1, dim = 1)
+        
+        #print('This is x: {}\nThis is y {}\nThis is y_hat: {}\nThis is class {}\nThis is probability {}'.format(x.size(),y[0],y_hat.data[0], top_class.data[0][0], top_p.data[0][0]), end="\r", flush=True)
+        return [int(y[0]), int(top_class.data[0][0]), float(top_p.data[0][0])]
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
@@ -122,9 +216,12 @@ def cli_main():
     # ------------
 
     # Create datasets for training & validation, download if necessary
-    full_set = torchvision.datasets.ImageFolder('/pvol' + '/' + str(img_size)+ '_images/', transform= transforms.Compose([transforms.ToTensor()])) #, transform=transform
-
-    training_set, validation_set, test_set = torch.utils.data.random_split(full_set,[0.8, 0.1, 0.1], generator=torch.Generator().manual_seed(42))
+    #full_set = torchvision.datasets.ImageFolder('/pvol' + '/' + str(img_size)+ '_images/', transform= transforms.Compose([transforms.ToTensor()])) 
+    #, transform=transform
+    full_set = UniformDataset(img_size)
+    test_perc = 0.2
+    training_set, validation_set = torch.utils.data.random_split(full_set,[0.85, 0.15], generator=torch.Generator().manual_seed(42))
+    test_set = MixedDataset(img_size, test_perc)
     
     # Create data loaders for our datasets; shuffle for training and for validation
     train_loader = torch.utils.data.DataLoader(training_set, batch_size=args.batch_size, shuffle=True, num_workers=os.cpu_count())
@@ -135,20 +232,19 @@ def cli_main():
     
     print('Number of validation images: {}'.format(len(val_loader.dataset)))
 
-    test_loader = torch.utils.data.DataLoader(test_set, batch_size=args.batch_size, shuffle=False, num_workers=os.cpu_count())
+    test_loader = torch.utils.data.DataLoader(test_set, batch_size=1, shuffle=False, num_workers=os.cpu_count())
     print('Number of test images: {}'.format(len(test_loader.dataset)))
     
     # ------------
     # model
     # ------------
     model = KelpClassifier(args.hidden_dim, args.learning_rate)
-
     # ------------
     # training
     # ------------
     tb_logger = pl_loggers.TensorBoardLogger(save_dir="/pvol/logs/lightning_logs", name=str(img_size)+'_'+backbone_name+'_Image_Size')
     if torch.cuda.is_available(): 
-        max_epochs= 30
+        max_epochs= 50
         trainer = pl.Trainer(
                 accelerator='gpu', 
                 devices=1, 
@@ -160,37 +256,49 @@ def cli_main():
                 log_every_n_steps=max_epochs)
     else:
         trainer = pl.Trainer.from_argparse_args(args)
-
     trainer.fit(model, train_loader, val_loader)
-
+    
     # ------------
     # testing
     # ------------
+    #model = KelpClassifier.load_from_checkpoint('/pvol/logs/lightning_logs/300_regnet_x_32gf_Image_Size/version_6/checkpoints/epoch=0-step=2270.ckpt')
+    #model.eval()
+    #output = trainer.predict(model, dataloaders=test_loader)
+    #print(output)
     trainer.test(ckpt_path='best', dataloaders=test_loader)
+    return model 
 
-    # Should work with pytorch-lightning >= 1.8.4
-    #model_scripted = torch.jit.script(model)
-    #print('Model is being saved!')
-    #model_scripted.save("pvol/Trials/{}_trial.pth".format('test')) # Save
+
+
 
 if __name__ == '__main__':
     #img_list = [16, 24, 32, 64, 128, 224, 240, 256, 272, 288, 304, 320, 336, 512]
-    img_list = [240, 288, 336]
+    img_list = [300]
 
     model_specs = [
         ['resnet50', 0],
-        ['googlenet', 0], 
-        ['convnext_large', 1536], 
-        ['convnext_small', 768], 
+        #['googlenet', 0], 
+        #['convnext_large', 1536], 
+        #['convnext_small', 768], 
         ['resnext101_64x4d', 0], 
         ['efficientnet_v2_l', 1280], 
-        ['vit_h_14', 1280], 
+        #['vit_h_14', 1280], 
         ['regnet_x_32gf', 0], 
-        ['swin_v2_b', 1024]]
+        #['swin_v2_b', 1024]
+        ]
+
+    #model_specs = [
+    #    ['regnet_x_32gf', 0] 
+    #    ]
     for img_size in img_list:
         for backbone_name, no_filters in model_specs:
+            model = cli_main()
+            #model_scripted = model.to_torchscript(method="script")
+            #model_scripted.save('test.pth')
+            
             try:
                 cli_main()
             except:
                 print('!!! Error \n   Problem with img_size {} and backbone {}'.format(img_size, backbone_name))
                 continue
+            

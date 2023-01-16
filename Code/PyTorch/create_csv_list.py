@@ -50,8 +50,12 @@ class create_csv_list():
     '''
     def get_annotation_set(self, API_TOKEN, URL,  id_list, HERE):
         # Create .csv file to append to 
-        NAME = '/Annotation_Sets/Full_Annotation_List.csv'
-        with open(HERE + NAME, 'w') as creating_new_csv_file: 
+        anno_name = '/Annotation_Sets/Full_Annotation_List.csv'
+        prob_name = '/Annotation_Sets/Problem_Files_Full_Annotation_List.txt'
+        
+        #with open(HERE + anno_name, 'w') as creating_new_csv_file: 
+        #    pass
+        with open(HERE + prob_name, 'w') as creating_new_csv_file: 
             pass
         
         counter = 0
@@ -59,8 +63,6 @@ class create_csv_list():
         for id in id_list: 
             annotation_url = '/' + str(id) + '/export?template=dataframe.csv&disposition=attachment&include_columns=["label.id","label.uuid","label.name","tag_names","point.id","point.x","point.y","point.t","point.data","point.media.id","point.media.path_best","point.pose.timestamp","point.pose.lat","point.pose.lon","point.pose.alt","point.pose.dep","label.translated.id","label.translated.uuid","label.translated.name","label.translated.lineage_names","label.translated.translation_info"]&f={"operations":[{"module":"pandas","method":"json_normalize"},{"method":"sort_index","kwargs":{"axis":1}}]}&q={"filters":[{"name":"point","op":"has","val":{"name":"has_xy","op":"eq","val":true}},{"name":"label_id","op":"is_not_null"}]}&translate={"vocab_registry_keys":["worms","caab","catami"],"target_label_scheme_id":null}'
             
-            
-
             with requests.Session() as s:
                 head = {'auth-token': API_TOKEN}
                 #print(URL+annotation_url)
@@ -68,14 +70,20 @@ class create_csv_list():
                 decoded_content = download.content.decode('utf-8')
                 df = pd.read_csv(io.StringIO(decoded_content))
                 
-                with pd.option_context('display.max_rows', None, 'display.max_columns', None):  # more options can be specified also
+                #with pd.option_context('display.max_rows', None, 'display.max_columns', None):  # more options can be specified also
                     #print(df.shape[])
-                    print(df.head(0))
+                    #print(df.head(0))
                 
                 try:
                     df = df[['label.id', 'label.name', 'label.uuid', 'point.id', 'point.media.path_best', 'point.x', 'point.y', 'tag_names']]
                 except:
                     print("Problem with annotationset {}, will be skipped".format(id))
+                    print(df.head(0))
+                    with open('/home/ubuntu/IMAS/Code/PyTorch/Annotation_Sets/Problem_Files_Full_Annotation_List.txt', 'a') as f:
+                        f.write('\n ID: ' + id + '\n')
+                        f.write(str(df.head(0)))
+                    #df = df.insert(0, id, "")
+                    #df.head(0).to_csv(path_or_buf=HERE+prob_name, mode='a', index=False, header=True)
                     continue
                 
 
@@ -85,10 +93,10 @@ class create_csv_list():
                     header = True
                 
                 #df.drop("Unnamed: 0", axis=1, inplace=True)
-                df.to_csv(path_or_buf=HERE+NAME, mode='a', index=False, header=header)
+                #df.to_csv(path_or_buf=HERE+anno_name, mode='a', index=False, header=header)
             counter += 1
             print('CSV file number {}/{} saved for id: {}'.format(counter,len(id_list) , id))
-        return NAME
+        return anno_name
 
 if __name__ == "__main__":
     URL = "https://squidle.org/api"
@@ -97,16 +105,15 @@ if __name__ == "__main__":
     data = create_csv_list()
     API_TOKEN = data.load_token(HERE)
     
-    id_list = data.get_annotation_id(API_TOKEN, URL,  dataset_url, HERE)
+    #id_list = data.get_annotation_id(API_TOKEN, URL,  dataset_url, HERE)
     
-    
+
     # For faster testing pruposes a list file is just loaded
-    '''
     # empty list to read list from a file
     id_list = []
     
     # open file and read the content in a list
-    with open(HERE + '/id_list.txt', 'r') as fp:
+    with open(HERE + '/Annotation_Sets/id_list.txt', 'r') as fp:
         for line in fp:
             # remove linebreak from a current name
             # linebreak is the last character of each line
@@ -114,10 +121,9 @@ if __name__ == "__main__":
 
             # add current item to the list
             id_list.append(x)
-    '''
 
+    print(id_list)
     print('Retrieved a list of {} annotation sets.'.format(len(id_list)))
     annotation_url = URL+dataset_url
     NAME = data.get_annotation_set(API_TOKEN, annotation_url,  id_list, HERE)
-    # Name given for testing purpose
-    # data.clean_up_dataset(HERE, NAME)
+

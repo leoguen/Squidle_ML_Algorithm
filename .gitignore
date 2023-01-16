@@ -14,6 +14,7 @@ logs/
 Annotation_Sets/
 annotation_set.json
 */Full_Annotation_List.csv
+/Code/PyTorch/Annotation_Sets/
 
 # No images
 images_*/
