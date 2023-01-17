@@ -131,6 +131,8 @@ model = KelpClassifier.load_from_checkpoint(
     pretrained=True,
     optimizer="Adam",
     criterion="cross_entropy",
+    backbone_name = 'regnet_x_32gf',
+    no_filters = 0
     #lr=0.00005,
     #data_classes=data_classes,
 )
@@ -139,7 +141,7 @@ img_size = 300
 batch_size = 1
 
 print("Loading dataset loader...")
-test_set = MixedDataset(img_size, test_perc=0.1)
+test_set = MixedDataset(img_size, test_perc=0.3)
 #test_set = torchvision.datasets.ImageFolder('/pvol' + '/' + str(img_size)+ '_images/', transform= transforms.ToTensor()) 
 
 test_loader =  torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=os.cpu_count())
@@ -155,7 +157,8 @@ trainer = Trainer(
 results=[]
 
 results.append(trainer.predict(model, test_loader))
-thresh = 0.7
-true_pos, true_neg, false_pos, false_neg, unlabeled,eck_count, oth_count = analyze_results(results[0], thresh)
-accuracy = (true_pos+true_neg)/(true_pos+true_neg+false_neg+false_pos)
-print('True Positives {}\nTrue Negatives {}\nFalse Positives {}\nFalse Negatives {}\nThreshold {}\nUnlabeled Ecklonia {}\nUnlabeled Others {}\nAccuracy with Threshold {}'.format(true_pos, true_neg, false_pos, false_neg, thresh,eck_count-true_pos-false_neg, oth_count-true_neg-false_pos, accuracy))
+thresh_list = [0.5,0.6,0.7,0.8,0.9]
+for thresh in thresh_list:
+    true_pos, true_neg, false_pos, false_neg, unlabeled,eck_count, oth_count = analyze_results(results[0], thresh)
+    accuracy = (true_pos+true_neg)/(true_pos+true_neg+false_neg+false_pos)
+    print('True Positives: {}\nTrue Negatives: {}\nFalse Positives: {}\nFalse Negatives: {}\nThreshold: {}\nUnlabeled Ecklonia: {}\nUnlabeled Others: {}\nAccuracy with Threshold: {}'.format(true_pos, true_neg, false_pos, false_neg, thresh,eck_count-true_pos-false_neg, oth_count-true_neg-false_pos, accuracy))

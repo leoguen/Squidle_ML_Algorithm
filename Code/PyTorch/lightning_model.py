@@ -106,15 +106,15 @@ class MixedDataset(Dataset):
 
 
 class KelpClassifier(pl.LightningModule):
-    def __init__(self, hidden_dim=128, learning_rate=1e-3):
+    def __init__(self, backbone_name, no_filters, learning_rate):
         super().__init__()
         # init a pretrained resnet       
-        #backbone = getattr(models, backbone_name)(weights='DEFAULT')
-        backbone = models.regnet_x_32gf(weights ='DEFAULT')
-        num_filters = 2520
-        #num_filters = no_filters
-        #if num_filters == 0:
-        #    num_filters = backbone.fc.in_features
+        backbone = getattr(models, backbone_name)(weights='DEFAULT')
+        #backbone = models.regnet_x_32gf(weights ='DEFAULT')
+        #num_filters = 2520
+        num_filters = no_filters
+        if num_filters == 0:
+            num_filters = backbone.fc.in_features
         
         layers = list(backbone.children())[:-1]
         self.feature_extractor = nn.Sequential(*layers)
@@ -166,7 +166,6 @@ class KelpClassifier(pl.LightningModule):
         prob = F.softmax(y_hat, dim=1)
         top_p, top_class = prob.topk(1, dim = 1)
         
-        #print('This is x: {}\nThis is y {}\nThis is y_hat: {}\nThis is class {}\nThis is probability {}'.format(x.size(),y[0],y_hat.data[0], top_class.data[0][0], top_p.data[0][0]), end="\r", flush=True)
         return [int(y[0]), int(top_class.data[0][0]), float(top_p.data[0][0])]
 
     def configure_optimizers(self):
@@ -204,31 +203,25 @@ def cli_main():
     # ------------
     # args
     # ------------
-    parser = ArgumentParser()
-    parser.add_argument('--batch_size', default=32, type=int)
-    parser = pl.Trainer.add_argparse_args(parser)
-    parser = KelpClassifier.add_model_specific_args(parser)
-    args = parser.parse_args()
-    here = os.path.dirname(os.path.abspath(__file__))
+    batch_size = 32
+    learning_rate = 0.0001
 
     # ------------
     # data
     # ------------
 
     # Create datasets for training & validation, download if necessary
-    #full_set = torchvision.datasets.ImageFolder('/pvol' + '/' + str(img_size)+ '_images/', transform= transforms.Compose([transforms.ToTensor()])) 
-    #, transform=transform
     full_set = UniformDataset(img_size)
     test_perc = 0.2
     training_set, validation_set = torch.utils.data.random_split(full_set,[0.85, 0.15], generator=torch.Generator().manual_seed(42))
     test_set = MixedDataset(img_size, test_perc)
     
     # Create data loaders for our datasets; shuffle for training and for validation
-    train_loader = torch.utils.data.DataLoader(training_set, batch_size=args.batch_size, shuffle=True, num_workers=os.cpu_count())
+    train_loader = torch.utils.data.DataLoader(training_set, batch_size=batch_size, shuffle=True, num_workers=os.cpu_count())
     print('Dataset image size: {}'.format(img_size))
     print('Number of training images: {}'.format(len(train_loader.dataset)))
     
-    val_loader = torch.utils.data.DataLoader(validation_set, batch_size=args.batch_size, shuffle=False, num_workers=os.cpu_count())
+    val_loader = torch.utils.data.DataLoader(validation_set, batch_size=batch_size, shuffle=False, num_workers=os.cpu_count())
     
     print('Number of validation images: {}'.format(len(val_loader.dataset)))
 
@@ -238,7 +231,7 @@ def cli_main():
     # ------------
     # model
     # ------------
-    model = KelpClassifier(args.hidden_dim, args.learning_rate)
+    model = KelpClassifier(backbone_name, no_filters,learning_rate)
     # ------------
     # training
     # ------------
@@ -255,21 +248,21 @@ def cli_main():
                 auto_scale_batch_size=True, 
                 log_every_n_steps=max_epochs)
     else:
-        trainer = pl.Trainer.from_argparse_args(args)
+        trainer = pl.Trainer(accelerator='cpu', 
+                devices=1, 
+                max_epochs=max_epochs, 
+                logger=tb_logger, 
+                default_root_dir='/pvol/',
+                auto_lr_find=True, 
+                auto_scale_batch_size=True, 
+                log_every_n_steps=max_epochs)
     trainer.fit(model, train_loader, val_loader)
     
     # ------------
     # testing
     # ------------
-    #model = KelpClassifier.load_from_checkpoint('/pvol/logs/lightning_logs/300_regnet_x_32gf_Image_Size/version_6/checkpoints/epoch=0-step=2270.ckpt')
-    #model.eval()
-    #output = trainer.predict(model, dataloaders=test_loader)
-    #print(output)
     trainer.test(ckpt_path='best', dataloaders=test_loader)
     return model 
-
-
-
 
 if __name__ == '__main__':
     #img_list = [16, 24, 32, 64, 128, 224, 240, 256, 272, 288, 304, 320, 336, 512]
@@ -287,18 +280,12 @@ if __name__ == '__main__':
         #['swin_v2_b', 1024]
         ]
 
-    #model_specs = [
-    #    ['regnet_x_32gf', 0] 
-    #    ]
     for img_size in img_list:
         for backbone_name, no_filters in model_specs:
             model = cli_main()
-            #model_scripted = model.to_torchscript(method="script")
-            #model_scripted.save('test.pth')
             
             try:
                 cli_main()
             except:
                 print('!!! Error \n   Problem with img_size {} and backbone {}'.format(img_size, backbone_name))
                 continue
-            
