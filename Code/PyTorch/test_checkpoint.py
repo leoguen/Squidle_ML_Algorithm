@@ -17,6 +17,8 @@ from torch.utils.data.dataset import Dataset
 import glob
 import cv2
 import random
+import pandas as pd
+from pytorch_lightning import Trainer
 
 class UniformDataset(Dataset):
     def __init__(self, img_size):
@@ -54,6 +56,7 @@ class MixedDataset(Dataset):
         file_list = [self.imgs_path + 'Others', self.imgs_path + 'Ecklonia']
         if test_perc*0.04*2*100 < 1:eck_perc = 1
         else: eck_perc = test_perc*0.04*2*100
+        eck_perc = 100 # to test full dataset
         unpad_perc = [test_perc*100, eck_perc]
         for class_path in file_list:
             class_name = class_path.split("/")[-1]
@@ -80,8 +83,7 @@ class MixedDataset(Dataset):
         oth_perc = int(test_perc*100)
         if int(test_perc*0.04*100) == 0: eck_perc =1
         else: eck_perc = int(test_perc*0.04*100)
-        #eck_perc = int(((adap_len_both)/(2*eck_pad_files))*100)
-        #oth_perc = int((adap_len_both/(2*oth_pad_files))*100)
+        eck_perc = 100 # to test full dataset
         pad_oth_count = 0
         pad_eck_count = 0
         perc = [oth_perc, eck_perc]
@@ -108,7 +110,7 @@ class MixedDataset(Dataset):
 
 def analyze_results(results, thresh):
     true_pos, true_neg, false_pos, false_neg, unlabeled, eck_count, oth_count = 0,0,0,0,0,0,0 
-    for y, top_class, top_p in results:
+    for id, y, top_class, top_p in results:
         # Count Eck and Oth
         if y == 0: eck_count +=1
         else: oth_count +=1
@@ -123,6 +125,16 @@ def analyze_results(results, thresh):
                 if y == 1: false_pos += 1
                 elif y == 0: false_neg += 1
     return true_pos, true_neg, false_pos, false_neg, unlabeled,eck_count, oth_count
+
+def save_csv(results, test_set):
+    results_df = pd.DataFrame(results)
+    results_df.rename({'0': 'ID', '1': 'Ground_Truth', '2':'Prediction', '3':'Percentage'}, inplace=True)
+    path_df = pd.DataFrame(test_set.data)
+    results_df.rename({'0': 'Path', '1': 'Label'}, inplace=True)
+    final_df = pd.concat([results_df, path_df],axis=1 ,join='outer')
+    # saving the dataframe 
+    final_df.columns = ['ID', 'Ground_Truth', 'Prediction', 'Percentage', 'Path', 'Label']
+    final_df.to_csv('/home/ubuntu/IMAS/Code/PyTorch/Annotation_Sets/{}_Prediction_Results.csv'.format(len(final_df)), index=False, header=True)
 print("Loading the model...")
 model = KelpClassifier.load_from_checkpoint(
 
@@ -139,14 +151,14 @@ model = KelpClassifier.load_from_checkpoint(
 
 img_size = 300
 batch_size = 1
-
+test_perc=1
 print("Loading dataset loader...")
-test_set = MixedDataset(img_size, test_perc=0.3)
+test_set = MixedDataset(img_size, test_perc)
 #test_set = torchvision.datasets.ImageFolder('/pvol' + '/' + str(img_size)+ '_images/', transform= transforms.ToTensor()) 
 
 test_loader =  torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=os.cpu_count())
+#print(test_loader.dataset.data)
 
-from pytorch_lightning import Trainer
 # Instantiate the Trainer
 trainer = Trainer(
     num_nodes=1,
@@ -154,11 +166,11 @@ trainer = Trainer(
     devices=1,
     default_root_dir='/pvol/test/'
 )
-results=[]
+results = (trainer.predict(model, test_loader))
+save_csv(results, test_set)
 
-results.append(trainer.predict(model, test_loader))
-thresh_list = [0.5,0.6,0.7,0.8,0.9]
+thresh_list = [0.5]
 for thresh in thresh_list:
-    true_pos, true_neg, false_pos, false_neg, unlabeled,eck_count, oth_count = analyze_results(results[0], thresh)
+    true_pos, true_neg, false_pos, false_neg, unlabeled,eck_count, oth_count = analyze_results(results, thresh)
     accuracy = (true_pos+true_neg)/(true_pos+true_neg+false_neg+false_pos)
     print('True Positives: {}\nTrue Negatives: {}\nFalse Positives: {}\nFalse Negatives: {}\nThreshold: {}\nUnlabeled Ecklonia: {}\nUnlabeled Others: {}\nAccuracy with Threshold: {}'.format(true_pos, true_neg, false_pos, false_neg, thresh,eck_count-true_pos-false_neg, oth_count-true_neg-false_pos, accuracy))

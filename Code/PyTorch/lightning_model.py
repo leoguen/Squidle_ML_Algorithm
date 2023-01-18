@@ -166,7 +166,7 @@ class KelpClassifier(pl.LightningModule):
         prob = F.softmax(y_hat, dim=1)
         top_p, top_class = prob.topk(1, dim = 1)
         
-        return [int(y[0]), int(top_class.data[0][0]), float(top_p.data[0][0])]
+        return batch_idx, int(y[0]), int(top_class.data[0][0]), float(top_p.data[0][0])
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
@@ -283,7 +283,6 @@ if __name__ == '__main__':
     for img_size in img_list:
         for backbone_name, no_filters in model_specs:
             model = cli_main()
-            
             try:
                 cli_main()
             except:
