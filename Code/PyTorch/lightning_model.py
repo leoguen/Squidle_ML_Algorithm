@@ -78,8 +78,6 @@ class MixedDataset(Dataset):
         oth_perc = int(test_perc*100)
         if int(test_perc*0.04*100) == 0: eck_perc =1
         else: eck_perc = int(test_perc*0.04*100)
-        #eck_perc = int(((adap_len_both)/(2*eck_pad_files))*100)
-        #oth_perc = int((adap_len_both/(2*oth_pad_files))*100)
         pad_oth_count = 0
         pad_eck_count = 0
         perc = [oth_perc, eck_perc]
@@ -170,13 +168,14 @@ class KelpClassifier(pl.LightningModule):
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
-
+    '''
     @staticmethod
     def add_model_specific_args(parent_parser):
         parser = ArgumentParser(parents=[parent_parser], add_help=False)
         parser.add_argument('--hidden_dim', type=int, default=128)
         parser.add_argument('--learning_rate', type=float, default=0.0001)
         return parser
+    '''
 
 def image_to_tb(self, batch, batch_idx):
     
@@ -197,7 +196,6 @@ def image_to_tb(self, batch, batch_idx):
 
 def cli_main():
     #writer = SummaryWriter(log_dir='/pvol/runs/')
-    
     pl.seed_everything(1234)
 
     # ------------

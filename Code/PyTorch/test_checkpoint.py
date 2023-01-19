@@ -2,6 +2,7 @@ from torchvision import transforms
 from torchvision.datasets import ImageFolder
 from torch.utils.data import DataLoader
 from lightning_model import KelpClassifier
+from lightning_model import MixedDataset
 from torch.utils.data import Subset
 import torch
 import random as rnd
@@ -19,7 +20,7 @@ import cv2
 import random
 import pandas as pd
 from pytorch_lightning import Trainer
-
+'''
 class UniformDataset(Dataset):
     def __init__(self, img_size):
         self.imgs_path = '/pvol' + '/' + str(img_size)+ '_images/'
@@ -107,7 +108,7 @@ class MixedDataset(Dataset):
         img_tensor = transforms.ToTensor()(img)
         class_id = torch.tensor(class_id)
         return img_tensor, class_id
-
+'''
 def analyze_results(results, thresh):
     true_pos, true_neg, false_pos, false_neg, unlabeled, eck_count, oth_count = 0,0,0,0,0,0,0 
     for id, y, top_class, top_p in results:
@@ -151,7 +152,7 @@ model = KelpClassifier.load_from_checkpoint(
 
 img_size = 300
 batch_size = 1
-test_perc=1
+test_perc=0.001
 print("Loading dataset loader...")
 test_set = MixedDataset(img_size, test_perc)
 #test_set = torchvision.datasets.ImageFolder('/pvol' + '/' + str(img_size)+ '_images/', transform= transforms.ToTensor()) 
@@ -173,4 +174,4 @@ thresh_list = [0.5]
 for thresh in thresh_list:
     true_pos, true_neg, false_pos, false_neg, unlabeled,eck_count, oth_count = analyze_results(results, thresh)
     accuracy = (true_pos+true_neg)/(true_pos+true_neg+false_neg+false_pos)
-    print('True Positives: {}\nTrue Negatives: {}\nFalse Positives: {}\nFalse Negatives: {}\nThreshold: {}\nUnlabeled Ecklonia: {}\nUnlabeled Others: {}\nAccuracy with Threshold: {}'.format(true_pos, true_neg, false_pos, false_neg, thresh,eck_count-true_pos-false_neg, oth_count-true_neg-false_pos, accuracy))
+    print('True Positives: {}\nTrue Negatives: {}\nFalse Positives: {}\nFalse Negatives: {}\nThreshold: {}\nUnlabeled Ecklonia: {}\nUnlabeled Others: {}\nAccuracy with Threshold of {}: {}'.format(true_pos, true_neg, false_pos, false_neg, thresh,eck_count-true_pos-false_neg, oth_count-true_neg-false_pos, thresh,accuracy))
