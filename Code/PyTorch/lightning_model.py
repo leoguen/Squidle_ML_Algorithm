@@ -5,7 +5,7 @@ import pytorch_lightning as pl
 import torch.nn as nn
 from torch.nn import functional as F
 from torch.utils.data import DataLoader, random_split
-
+import torchmetrics
 import torchvision
 import torchvision.models as models
 from torchvision import transforms
@@ -106,7 +106,8 @@ class MixedDataset(Dataset):
 class KelpClassifier(pl.LightningModule):
     def __init__(self, backbone_name, no_filters, learning_rate):
         super().__init__()
-        # init a pretrained resnet       
+        # init a pretrained resnet 
+        self.accuracy = torchmetrics.Accuracy(task='binary')      
         backbone = getattr(models, backbone_name)(weights='DEFAULT')
         #backbone = models.regnet_x_32gf(weights ='DEFAULT')
         #num_filters = 2520
@@ -141,19 +142,30 @@ class KelpClassifier(pl.LightningModule):
         x, y = batch
         y_hat = self(x)
         loss = F.cross_entropy(y_hat, y)
-        batch_idx = image_to_tb(self, batch, batch_idx)
         return loss
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
         y_hat = self(x)
+        prob = F.softmax(y_hat, dim=1)
         loss = F.cross_entropy(y_hat, y)
+        top_p, top_class = prob.topk(1, dim = 1)
+        top_class = torch.reshape(top_class, (-1,))
+        accuracy = self.accuracy(top_class, y)
+        batch_idx = image_to_tb(self, batch, batch_idx)
         self.log('valid_loss', loss)
+        self.log('valid_accuracy', accuracy)
 
     def test_step(self, batch, batch_idx):
         x, y = batch
         y_hat = self(x)
         loss = F.cross_entropy(y_hat, y)
+        prob = F.softmax(y_hat, dim=1)
+        top_p, top_class = prob.topk(1, dim = 1)
+        top_class = torch.reshape(top_class, (-1,))
+        accuracy = self.accuracy(top_class, y)
+        #batch_idx = image_to_tb(self, batch, batch_idx)
+        self.log('test_accuracy', accuracy)
         self.log('test_loss', loss)
     
     def predict_step(self, batch, batch_idx):
@@ -196,7 +208,7 @@ def image_to_tb(self, batch, batch_idx):
 
 def cli_main():
     #writer = SummaryWriter(log_dir='/pvol/runs/')
-    pl.seed_everything(1234)
+    pl.seed_everything(12345)
 
     # ------------
     # args
@@ -211,7 +223,7 @@ def cli_main():
     # Create datasets for training & validation, download if necessary
     full_set = UniformDataset(img_size)
     test_perc = 0.2
-    training_set, validation_set = torch.utils.data.random_split(full_set,[0.85, 0.15], generator=torch.Generator().manual_seed(42))
+    training_set, validation_set = torch.utils.data.random_split(full_set,[0.85, 0.15], generator=torch.Generator().manual_seed(43))
     test_set = MixedDataset(img_size, test_perc)
     
     # Create data loaders for our datasets; shuffle for training and for validation
@@ -235,7 +247,7 @@ def cli_main():
     # ------------
     tb_logger = pl_loggers.TensorBoardLogger(save_dir="/pvol/logs/lightning_logs", name=str(img_size)+'_'+backbone_name+'_Image_Size')
     if torch.cuda.is_available(): 
-        max_epochs= 50
+        max_epochs= 30
         trainer = pl.Trainer(
                 accelerator='gpu', 
                 devices=1, 
@@ -263,8 +275,8 @@ def cli_main():
     return model 
 
 if __name__ == '__main__':
-    #img_list = [16, 24, 32, 64, 128, 224, 240, 256, 272, 288, 304, 320, 336, 512]
-    img_list = [300]
+    img_list = [304, 24, 32, 288, 300, 320, 336, 400, 448, 480, 512, 544, 576, 608]
+    #img_list = [300]
 
     model_specs = [
         ['resnet50', 0],
