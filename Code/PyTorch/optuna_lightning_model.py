@@ -15,6 +15,15 @@ from torch.utils.data.dataset import Dataset
 import glob
 import cv2
 import random
+import optuna
+from optuna.integration import PyTorchLightningPruningCallback
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
+
+PERCENT_VALID_EXAMPLES = 0.1
+PERCENT_TEST_EXAMPLES = 0.1
+CLASSES = 2
+EPOCHS = 15
+
 
 class GeneralDataset(Dataset):
     def __init__(self, img_size, test_list, test):
@@ -79,7 +88,7 @@ class UniformDataset(Dataset):
         return img_tensor, class_id
 
 class MixedDataset(Dataset):
-    def __init__(self, img_size, test_perc):
+    def __init__(self, img_size, PERCENT_TEST_EXAMPLES):
         self.data = []
         self.imgs_path = '/pvol' + '/' + str(img_size)+ '_images/'
         self.pad_imgs_path = '/pvol' + '/' + str(img_size)+ '_images/Padding/'
@@ -87,9 +96,9 @@ class MixedDataset(Dataset):
         # Get unpadded images
         #####################
         file_list = [self.imgs_path + 'Others', self.imgs_path + 'Ecklonia']
-        if test_perc*0.04*2*100 < 1:eck_perc = 1
-        else: eck_perc = test_perc*0.04*2*100
-        unpad_perc = [test_perc*100, eck_perc]
+        if PERCENT_TEST_EXAMPLES*0.04*2*100 < 1:eck_perc = 1
+        else: eck_perc = PERCENT_TEST_EXAMPLES*0.04*2*100
+        unpad_perc = [PERCENT_TEST_EXAMPLES*100, eck_perc]
         for class_path in file_list:
             class_name = class_path.split("/")[-1]
             for img_path in glob.glob(class_path + "/*.jpg"):
@@ -111,10 +120,10 @@ class MixedDataset(Dataset):
         eck_pad_files =(len([name for name in os.listdir(file_list[1]) if os.path.isfile(os.path.join(file_list[1], name))]))
 
         len_both = (oth_pad_files+eck_pad_files)
-        adap_len_both = len_both*test_perc
-        oth_perc = int(test_perc*100)
-        if int(test_perc*0.04*100) == 0: eck_perc =1
-        else: eck_perc = int(test_perc*0.04*100)
+        adap_len_both = len_both*PERCENT_TEST_EXAMPLES
+        oth_perc = int(PERCENT_TEST_EXAMPLES*100)
+        if int(PERCENT_TEST_EXAMPLES*0.04*100) == 0: eck_perc =1
+        else: eck_perc = int(PERCENT_TEST_EXAMPLES*0.04*100)
         pad_oth_count = 0
         pad_eck_count = 0
         perc = [oth_perc, eck_perc]
@@ -141,13 +150,13 @@ class MixedDataset(Dataset):
 
 
 class KelpClassifier(pl.LightningModule):
-    def __init__(self, backbone_name, no_filters, learning_rate):
+    def __init__(self, backbone_name, no_filters, learning_rate, dropout):
         super().__init__()
         # init a pretrained resnet 
+        self.hparams.learning_rate = learning_rate
         self.accuracy = torchmetrics.Accuracy(task='binary')      
         backbone = getattr(models, backbone_name)(weights='DEFAULT')
-        #backbone = models.regnet_x_32gf(weights ='DEFAULT')
-        #num_filters = 2520
+
         num_filters = no_filters
         if num_filters == 0:
             num_filters = backbone.fc.in_features
@@ -159,10 +168,6 @@ class KelpClassifier(pl.LightningModule):
         self.classifier = nn.Linear(num_filters,  num_target_classes)
         self.save_hyperparameters()
 
-        '''
-        self.l1 = torch.nn.Linear(img_size * img_size * 3, self.hparams.hidden_dim)
-        self.l2 = torch.nn.Linear(self.hparams.hidden_dim, 2)
-        '''
 
     def forward(self, x):
         self.feature_extractor.eval()
@@ -170,9 +175,6 @@ class KelpClassifier(pl.LightningModule):
             representations = self.feature_extractor(x).flatten(1)
         x = self.classifier(representations)
         
-        #x = x.view(x.size(0), -1)
-        #x = torch.relu(self.l1(x))
-        #x = torch.relu(self.l2(x))
         return x
 
     def training_step(self, batch, batch_idx):
@@ -217,14 +219,6 @@ class KelpClassifier(pl.LightningModule):
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
-    '''
-    @staticmethod
-    def add_model_specific_args(parent_parser):
-        parser = ArgumentParser(parents=[parent_parser], add_help=False)
-        parser.add_argument('--hidden_dim', type=int, default=128)
-        parser.add_argument('--learning_rate', type=float, default=0.0001)
-        return parser
-    '''
 
 def image_to_tb(self, batch, batch_idx):
 
@@ -243,27 +237,27 @@ def image_to_tb(self, batch, batch_idx):
         #tensorboard.add_image(batch[0])
     return batch_idx
 
-def get_test_dataset(img_size, test_perc):
+def get_test_dataset(img_size, PERCENT_TEST_EXAMPLES):
     unpad_path = '/pvol/' + str(img_size)+ '_images/'
     pads_path = '/pvol/' + str(img_size)+ '_images/Padding/'
     both_path = [unpad_path, pads_path]
     unpad_file_list = [unpad_path + 'Others', unpad_path + 'Ecklonia']
     pad_file_list =  [pads_path + 'Others', pads_path + 'Ecklonia']
     both_file_list = [unpad_file_list, pad_file_list]
-    perc = [test_perc * 100, 1]
+    perc = [PERCENT_TEST_EXAMPLES * 100, 1]
     unpad_data = []
     pad_data = []
     both_data = [unpad_data, pad_data]
     perc_id = 0
     counter = [[0,0],[0,0]]
-    if int(test_perc * 0.05 * 100) ==0: perc[1] = 1
-    else: perc[1] = int(test_perc * 0.05 * 100)
+    if int(PERCENT_TEST_EXAMPLES * 0.05 * 100) ==0: perc[1] = 1
+    else: perc[1] = int(PERCENT_TEST_EXAMPLES * 0.05 * 100)
     for idx in range(2):
         # First loop iterates over unpad files, second over padded files
         for class_path in both_file_list[idx]:
             class_name = class_path.split("/")[-1]
             for img_path in glob.glob(class_path + "/*.jpg"):
-                #only add path to data if test_perc allows
+                #only add path to data if PERCENT_TEST_EXAMPLES allows
                 if class_name == 'Others': 
                     perc_id = 0
                     class_id = 0
@@ -276,8 +270,7 @@ def get_test_dataset(img_size, test_perc):
     print('The Test-Dataset comprises of: \nUniform Ecklonia {}\nUniform Others {} \nPadded Ecklonia {}\nPadded Others {}'.format(counter[0][1], counter[0][0], counter[1][1], counter[1][0]))
     return both_data
 
-
-
+'''
 def cli_main():
     #writer = SummaryWriter(log_dir='/pvol/runs/')
     pl.seed_everything(12345)
@@ -285,7 +278,7 @@ def cli_main():
     # ------------
     # args
     # ------------
-    batch_size = 32
+    BATCHSIZE = 32
     learning_rate = 0.0001
 
     # ------------
@@ -293,23 +286,23 @@ def cli_main():
     # ------------
 
     # Create datasets for training & validation, download if necessary
-    test_perc = 0.1
-    test_list = get_test_dataset(img_size, test_perc)
+    PERCENT_TEST_EXAMPLES = 0.1
+    test_list = get_test_dataset(img_size, PERCENT_TEST_EXAMPLES)
     test_set = GeneralDataset(img_size, test_list, test = True)
     train_val_set = GeneralDataset(img_size, test_list, test = False)
     
     training_set, validation_set = torch.utils.data.random_split(train_val_set,[0.90, 0.10], generator=torch.Generator().manual_seed(43))
 
     # Create data loaders for our datasets; shuffle for training and for validation
-    train_loader = torch.utils.data.DataLoader(training_set, batch_size=batch_size, shuffle=True, num_workers=os.cpu_count())
+    train_loader = torch.utils.data.DataLoader(training_set, BATCHSIZE=BATCHSIZE, shuffle=True, num_workers=os.cpu_count())
     print('Dataset image size: {}'.format(img_size))
     print('Number of training images: {}'.format(len(train_loader.dataset)))
     
-    val_loader = torch.utils.data.DataLoader(validation_set, batch_size=batch_size, shuffle=False, num_workers=os.cpu_count())
+    val_loader = torch.utils.data.DataLoader(validation_set, BATCHSIZE=BATCHSIZE, shuffle=False, num_workers=os.cpu_count())
     
     print('Number of validation images: {}'.format(len(val_loader.dataset)))
 
-    test_loader = torch.utils.data.DataLoader(test_set, batch_size=1, shuffle=False, num_workers=os.cpu_count())
+    test_loader = torch.utils.data.DataLoader(test_set, BATCHSIZE=1, shuffle=False, num_workers=os.cpu_count())
     print('Number of test images: {}'.format(len(test_loader.dataset)))
     
     # ------------
@@ -330,7 +323,7 @@ def cli_main():
                 logger=tb_logger, 
                 default_root_dir='/pvol/',
                 auto_lr_find=True, 
-                auto_scale_batch_size=True, 
+                auto_scale_BATCHSIZE=True, 
                 log_every_n_steps=max_epochs)
     else:
         trainer = pl.Trainer(accelerator='cpu', 
@@ -339,7 +332,7 @@ def cli_main():
                 logger=tb_logger, 
                 default_root_dir='/pvol/',
                 auto_lr_find=True, 
-                auto_scale_batch_size=True, 
+                auto_scale_BATCHSIZE=True, 
                 log_every_n_steps=max_epochs)
     trainer.fit(model, train_loader, val_loader)
     
@@ -348,32 +341,80 @@ def cli_main():
     # ------------
     trainer.test(ckpt_path='best', dataloaders=test_loader)
     return model 
+'''
+    
+def objective(trial: optuna.trial.Trial) -> float:
+    img_size = 288
+    backbone_name, no_filters = ['regnet_x_32gf', 0]
+    # We optimize the number of layers, hidden units in each layer and dropouts.
+    
+    ###############
+    # Optuna Params
+    ###############
+    dropout = trial.suggest_float("dropout", 0.2, 0.5)
+    BATCHSIZE = trial.suggest_int("batchsize", 8, 128)
+    LEARNING_RATE = trial.suggest_float(
+        "learning_rate_init", 1e-5, 1e-3, log=True
+    )
+    ##############
+    # Data Loading
+    ##############
+    test_list = get_test_dataset(img_size, PERCENT_TEST_EXAMPLES)
+    test_set = GeneralDataset(img_size, test_list, test = True)
+    train_val_set = GeneralDataset(img_size, test_list, test = False)
+    
+    training_set, validation_set = torch.utils.data.random_split(train_val_set,[0.90, 0.10], generator=torch.Generator().manual_seed(43))
+
+    # Create data loaders for our datasets; shuffle for training and for validation
+    train_loader = torch.utils.data.DataLoader(training_set, BATCHSIZE, shuffle=True, num_workers=os.cpu_count())
+    
+    val_loader = torch.utils.data.DataLoader(validation_set, BATCHSIZE, shuffle=False, num_workers=os.cpu_count())
+
+    test_loader = torch.utils.data.DataLoader(test_set, batch_size=1, shuffle=False, num_workers=os.cpu_count())
+    model = KelpClassifier(backbone_name, no_filters, LEARNING_RATE, dropout)
+
+    trial_name = backbone_name + '_size_check'
+    tb_logger = pl_loggers.TensorBoardLogger(save_dir="/lightning_logs/", name=str(img_size)+'_'+trial_name+'_Image_Size')
+
+    acc_val = 'cpu'
+    if torch.cuda.is_available(): acc_val = 'gpu'
+    trainer = pl.Trainer(
+        logger=True,
+        enable_checkpointing=False,
+        max_epochs=EPOCHS,
+        accelerator=acc_val,
+        #callbacks=[PyTorchLightningPruningCallback(trial, monitor="valid_loss")]
+    )
+
+
+    hyperparameters = dict(dropout=dropout, batchsize=BATCHSIZE, learning_rate=LEARNING_RATE)
+    trainer.logger.log_hyperparams(hyperparameters)
+    trainer.fit(model, train_loader,val_loader )
+
+    return trainer.callback_metrics["valid_loss"].item()
+
+
 
 if __name__ == '__main__':
-    img_list = [#304, 24, 32, 288, 300, 320, 
-                336, 400, 448, 480, 512, 544, 576, 608]
-    #img_list = [300]
 
-    model_specs = [
-        #['resnet50', 0],
-        #['googlenet', 0], 
-        #['convnext_large', 1536], 
-        #['convnext_small', 768], 
-        #['resnext101_64x4d', 0], 
-        #['efficientnet_v2_l', 1280], 
-        #['vit_h_14', 1280], 
-        ['regnet_x_32gf', 0], 
-        #['swin_v2_b', 1024]
-        ]
+    pruning = True
 
-    for img_size in img_list:
-        for backbone_name, no_filters in model_specs:
-            
-            #cli_main()
-            
-            try:
-                cli_main()
-            except:
-                print('!!! Error \n   Problem with img_size {} and backbone {}'.format(img_size, backbone_name))
-                continue
-            
+    pruner: optuna.pruners.BasePruner = (
+        optuna.pruners.MedianPruner()
+    )
+
+    study = optuna.create_study(direction="minimize", pruner=pruner)
+    study.optimize(objective, n_trials=None, timeout=None)
+
+    print("Number of finished trials: {}".format(len(study.trials)))
+
+    print("Best trial:")
+    trial = study.best_trial
+
+    print("  Value: {}".format(trial.value))
+
+    print("  Params: ")
+    for key, value in trial.params.items():
+        print("    {}: {}".format(key, value))
+    
+    #cli_main()

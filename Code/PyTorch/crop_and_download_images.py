@@ -16,12 +16,12 @@ class crop_download_images():
     
     def create_directory_structure(self, save_path):
         structure_list = [
-            '/'+str(bounding_box[0])+'_images', 
-            '/'+str(bounding_box[0])+'_images/Ecklonia', 
-            '/'+str(bounding_box[0])+'_images/Others',
-            '/'+str(bounding_box[0])+'_images/Padding',
-            '/'+str(bounding_box[0])+'_images/Padding/Ecklonia',
-            '/'+str(bounding_box[0])+'_images/Padding/Others']
+            '/'+str(bounding_box[0])+'_images_fix', 
+            '/'+str(bounding_box[0])+'_images_fix/Ecklonia', 
+            '/'+str(bounding_box[0])+'_images_fix/Others',
+            '/'+str(bounding_box[0])+'_images_fix/Padding',
+            '/'+str(bounding_box[0])+'_images_fix/Padding/Ecklonia',
+            '/'+str(bounding_box[0])+'_images_fix/Padding/Others']
         for i in structure_list:
             crop_download_images.create_directory(save_path, i)
     
@@ -102,7 +102,7 @@ class crop_download_images():
         
         file_name = str(csv_file_df.label_name[index].replace('[.]', '_').replace('(', '_').replace(')', '_').replace(' ', '_')) +"_"+ str(csv_file_df.point_id[index]) +".jpg"
 
-        file_path_and_name = save_path +'/'+str(bounding_box[0])+'_images/' + label + '/' + file_name
+        file_path_and_name = save_path +'/'+str(bounding_box[0])+'_images_fix/' + label + '/' + file_name
         
         return file_path_and_name, cropped_image, empty_prob_list, crop_prob_list
 
@@ -111,30 +111,30 @@ if __name__ == "__main__":
     #[32,32],
     #[24,24],
     [288,288],
-    [304,304],
-    [320,320],
-    [336,336],
-    [400,400],
-    [448,448],
-    [480,480], 
-    [512,512], 
-    [544,544], 
-    [576,576], 
-    [608,608],
-    [128,128],
-    [224,224],
-    [230,230],
-    [240,240],
-    [256,256],
-    [272,272], 
-    [64,64],
+    #[304,304],
+    #[320,320],
+    #[336,336],
+    #[400,400],
+    #[448,448],
+    #[480,480], 
+    #[512,512], 
+    #[544,544], 
+    #[576,576], 
+    #[608,608],
+    #[128,128],
+    #[224,224],
+    #[230,230],
+    #[240,240],
+    #[256,256],
+    #[272,272], 
+    #[64,64],
     ]
     #download_list = [[336,336]]
     for bounding_box in download_list:
         print(bounding_box)
         here = os.path.dirname(os.path.abspath(__file__))
         save_path = '/pvol'
-        list_name = '/Annotation_Sets/106844_NORMALIZED_FULL_ANNOTATION_LIST.csv'
+        list_name = '/Annotation_Sets/106836_NORMALIZED_FULL_ANNOTATION_LIST.csv'
 
         data = crop_download_images()
 

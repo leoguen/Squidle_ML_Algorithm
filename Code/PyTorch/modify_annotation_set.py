@@ -37,6 +37,7 @@ class modify_annotation_set():
         shape_before = csv_file_df.shape[0]
 
         csv_file_df = csv_file_df.loc[csv_file_df['label_uuid'] != '2a00a85e-6675-4d69-ab4f-197992dcead7'] # Unscorable
+        csv_file_df = csv_file_df.loc[csv_file_df['label_name'] != 'Unscorable'] # Unscorable
         csv_file_df = csv_file_df.loc[csv_file_df['label_uuid'] != 'a00b6b37-0dc0-4bd5-893b-4ae1788fa96d'] # Unscorable
         print('Deleted {} rows; Unscorable.'.format(shape_before-csv_file_df.shape[0]))
         shape_before = csv_file_df.shape[0]
