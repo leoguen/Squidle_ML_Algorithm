@@ -18,6 +18,14 @@ import random
 import optuna
 from optuna.integration import PyTorchLightningPruningCallback
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
+from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+from torchmetrics.classification import BinaryF1Score
+from pytorch_lightning.callbacks import TQDMProgressBar
+from torchmetrics.classification import BinaryPrecision
+from torchmetrics.classification import BinaryAccuracy
+from torchmetrics.classification import BinaryRecall
+
+
 
 PERCENT_VALID_EXAMPLES = 0.1
 PERCENT_TEST_EXAMPLES = 0.1
@@ -33,7 +41,7 @@ class GeneralDataset(Dataset):
             self.data = self.data + test_list[1]
             self.class_map = {"Ecklonia" : 0, "Others": 1}
         else: 
-            self.imgs_path = '/pvol' + '/' + str(img_size)+ '_images/'
+            self.imgs_path = '/pvol' + '/' + str(img_size)+ '_images_fix/'
             file_list = [self.imgs_path + 'Others', self.imgs_path + 'Ecklonia']
             self.data = []
             for class_path in file_list:
@@ -43,12 +51,12 @@ class GeneralDataset(Dataset):
             
             # Delete all entries that are used in test_list
             del_counter = len(self.data)
-            print('Loaded created dataset of {} entries. \nNow deleting {} duplicate entries.'.format(len(self.data), len(test_list[0])))
+            #print('Loaded created dataset of {} entries. \nNow deleting {} duplicate entries.'.format(len(self.data), len(test_list[0])))
             for test_entry in (test_list[0]):
                 if test_entry in self.data:
                     self.data.remove(test_entry)
                     # !!!Why does it only remove half of all duplicate entries?
-            print('Deleted {} duplicate entries'.format(del_counter-len(self.data)))
+            #print('Deleted {} duplicate entries'.format(del_counter-len(self.data)))
             self.class_map = {"Ecklonia" : 0, "Others": 1}
         
     def __len__(self):
@@ -64,7 +72,7 @@ class GeneralDataset(Dataset):
 
 class UniformDataset(Dataset):
     def __init__(self, img_size):
-        self.imgs_path = '/pvol' + '/' + str(img_size)+ '_images/'
+        self.imgs_path = '/pvol' + '/' + str(img_size)+ '_images_fix/'
         file_list = [self.imgs_path + 'Others', self.imgs_path + 'Ecklonia']
         #print(file_list)
         self.data = []
@@ -90,8 +98,8 @@ class UniformDataset(Dataset):
 class MixedDataset(Dataset):
     def __init__(self, img_size, PERCENT_TEST_EXAMPLES):
         self.data = []
-        self.imgs_path = '/pvol' + '/' + str(img_size)+ '_images/'
-        self.pad_imgs_path = '/pvol' + '/' + str(img_size)+ '_images/Padding/'
+        self.imgs_path = '/pvol' + '/' + str(img_size)+ '_images_fix/'
+        self.pad_imgs_path = '/pvol' + '/' + str(img_size)+ '_images_fix/Padding/'
         #####################
         # Get unpadded images
         #####################
@@ -110,7 +118,7 @@ class MixedDataset(Dataset):
         for entry in self.data:
             oth_count += entry.count('Others')
             eck_count += entry.count('Ecklonia')
-        print('Others: {}, Ecklonia: {}'.format(oth_count, eck_count))
+        #print('Others: {}, Ecklonia: {}'.format(oth_count, eck_count))
         #####################
         # Get padded images
         #####################
@@ -135,7 +143,7 @@ class MixedDataset(Dataset):
                     else: pad_eck_count +=1 
                     self.data.append([img_path, class_name])
         self.class_map = {"Ecklonia" : 0, "Others": 1}
-        print('The dataset comprises of: \nUniform Ecklonia {}\nUniform Others {} \nPadded Ecklonia {}\nPadded Others {}\nDataset length {}'.format(eck_count, oth_count, pad_eck_count, pad_oth_count, len(self.data) ))
+        #print('The dataset comprises of: \nUniform Ecklonia {}\nUniform Others {} \nPadded Ecklonia {}\nPadded Others {}\nDataset length {}'.format(eck_count, oth_count, pad_eck_count, pad_oth_count, len(self.data) ))
     
     def __len__(self):
         return len(self.data)    
@@ -150,7 +158,7 @@ class MixedDataset(Dataset):
 
 
 class KelpClassifier(pl.LightningModule):
-    def __init__(self, backbone_name, no_filters, learning_rate, dropout):
+    def __init__(self, backbone_name, no_filters, learning_rate, dropout, batch_size):
         super().__init__()
         # init a pretrained resnet 
         self.hparams.learning_rate = learning_rate
@@ -192,6 +200,16 @@ class KelpClassifier(pl.LightningModule):
         top_class = torch.reshape(top_class, (-1,))
         accuracy = self.accuracy(top_class, y)
         batch_idx = image_to_tb(self, batch, batch_idx)
+        
+        f1_metric = BinaryF1Score().to('cuda')
+        f1_score = f1_metric(top_class, y)
+        prec_metric = BinaryPrecision().to('cuda')
+        prec_score = prec_metric(top_class, y)
+        rec_metric = BinaryRecall().to('cuda')
+        rec_score = rec_metric(top_class, y)
+        self.log('valid_recall', rec_score)
+        self.log('valid_precision', prec_score)
+        self.log('f1_score', f1_score)
         self.log('valid_loss', loss)
         self.log('valid_accuracy', accuracy)
 
@@ -203,9 +221,17 @@ class KelpClassifier(pl.LightningModule):
         top_p, top_class = prob.topk(1, dim = 1)
         top_class = torch.reshape(top_class, (-1,))
         accuracy = self.accuracy(top_class, y)
-        #batch_idx = image_to_tb(self, batch, batch_idx)
-        self.log('test_accuracy', accuracy)
+        f1_metric = BinaryF1Score().to('cuda')
+        f1_score = f1_metric(top_class, y)
+        prec_metric = BinaryPrecision().to('cuda')
+        prec_score = prec_metric(top_class, y)
+        rec_metric = BinaryRecall().to('cuda')
+        rec_score = rec_metric(top_class, y)
+        self.log('test_recall', rec_score)
+        self.log('test_precision', prec_score)
+        #self.log('test_f1_score', f1_score)
         self.log('test_loss', loss)
+        self.log('test_accuracy', accuracy)
     
     def predict_step(self, batch, batch_idx):
         # This can be used for implementation
@@ -219,6 +245,8 @@ class KelpClassifier(pl.LightningModule):
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
+
+
 
 def image_to_tb(self, batch, batch_idx):
 
@@ -238,8 +266,8 @@ def image_to_tb(self, batch, batch_idx):
     return batch_idx
 
 def get_test_dataset(img_size, PERCENT_TEST_EXAMPLES):
-    unpad_path = '/pvol/' + str(img_size)+ '_images/'
-    pads_path = '/pvol/' + str(img_size)+ '_images/Padding/'
+    unpad_path = '/pvol/' + str(img_size)+ '_images_fix/'
+    pads_path = '/pvol/' + str(img_size)+ '_images_fix/Padding/'
     both_path = [unpad_path, pads_path]
     unpad_file_list = [unpad_path + 'Others', unpad_path + 'Ecklonia']
     pad_file_list =  [pads_path + 'Others', pads_path + 'Ecklonia']
@@ -267,81 +295,8 @@ def get_test_dataset(img_size, PERCENT_TEST_EXAMPLES):
                 if random.randint(0,99) < perc[perc_id]:
                     both_data[idx].append([img_path, class_name])
                     counter[idx][class_id] += 1
-    print('The Test-Dataset comprises of: \nUniform Ecklonia {}\nUniform Others {} \nPadded Ecklonia {}\nPadded Others {}'.format(counter[0][1], counter[0][0], counter[1][1], counter[1][0]))
+    #print('The Test-Dataset comprises of: \nUniform Ecklonia {}\nUniform Others {} \nPadded Ecklonia {}\nPadded Others {}'.format(counter[0][1], counter[0][0], counter[1][1], counter[1][0]))
     return both_data
-
-'''
-def cli_main():
-    #writer = SummaryWriter(log_dir='/pvol/runs/')
-    pl.seed_everything(12345)
-
-    # ------------
-    # args
-    # ------------
-    BATCHSIZE = 32
-    learning_rate = 0.0001
-
-    # ------------
-    # data
-    # ------------
-
-    # Create datasets for training & validation, download if necessary
-    PERCENT_TEST_EXAMPLES = 0.1
-    test_list = get_test_dataset(img_size, PERCENT_TEST_EXAMPLES)
-    test_set = GeneralDataset(img_size, test_list, test = True)
-    train_val_set = GeneralDataset(img_size, test_list, test = False)
-    
-    training_set, validation_set = torch.utils.data.random_split(train_val_set,[0.90, 0.10], generator=torch.Generator().manual_seed(43))
-
-    # Create data loaders for our datasets; shuffle for training and for validation
-    train_loader = torch.utils.data.DataLoader(training_set, BATCHSIZE=BATCHSIZE, shuffle=True, num_workers=os.cpu_count())
-    print('Dataset image size: {}'.format(img_size))
-    print('Number of training images: {}'.format(len(train_loader.dataset)))
-    
-    val_loader = torch.utils.data.DataLoader(validation_set, BATCHSIZE=BATCHSIZE, shuffle=False, num_workers=os.cpu_count())
-    
-    print('Number of validation images: {}'.format(len(val_loader.dataset)))
-
-    test_loader = torch.utils.data.DataLoader(test_set, BATCHSIZE=1, shuffle=False, num_workers=os.cpu_count())
-    print('Number of test images: {}'.format(len(test_loader.dataset)))
-    
-    # ------------
-    # model
-    # ------------
-    model = KelpClassifier(backbone_name, no_filters,learning_rate)
-    # ------------
-    # training
-    # ------------
-    trial_name = backbone_name + '_size_check'
-    tb_logger = pl_loggers.TensorBoardLogger(save_dir="/pvol/logs/lightning_logs/Large_Dataset", name=str(img_size)+'_'+trial_name+'_Image_Size')
-    if torch.cuda.is_available(): 
-        max_epochs= 20
-        trainer = pl.Trainer(
-                accelerator='gpu', 
-                devices=1, 
-                max_epochs=max_epochs, 
-                logger=tb_logger, 
-                default_root_dir='/pvol/',
-                auto_lr_find=True, 
-                auto_scale_BATCHSIZE=True, 
-                log_every_n_steps=max_epochs)
-    else:
-        trainer = pl.Trainer(accelerator='cpu', 
-                devices=1, 
-                max_epochs=max_epochs, 
-                logger=tb_logger, 
-                default_root_dir='/pvol/',
-                auto_lr_find=True, 
-                auto_scale_BATCHSIZE=True, 
-                log_every_n_steps=max_epochs)
-    trainer.fit(model, train_loader, val_loader)
-    
-    # ------------
-    # testing
-    # ------------
-    trainer.test(ckpt_path='best', dataloaders=test_loader)
-    return model 
-'''
     
 def objective(trial: optuna.trial.Trial) -> float:
     img_size = 288
@@ -371,29 +326,30 @@ def objective(trial: optuna.trial.Trial) -> float:
     val_loader = torch.utils.data.DataLoader(validation_set, BATCHSIZE, shuffle=False, num_workers=os.cpu_count())
 
     test_loader = torch.utils.data.DataLoader(test_set, batch_size=1, shuffle=False, num_workers=os.cpu_count())
-    model = KelpClassifier(backbone_name, no_filters, LEARNING_RATE, dropout)
+    model = KelpClassifier(backbone_name, no_filters, LEARNING_RATE, dropout, BATCHSIZE)
 
     trial_name = backbone_name + '_size_check'
-    tb_logger = pl_loggers.TensorBoardLogger(save_dir="/lightning_logs/", name=str(img_size)+'_'+trial_name+'_Image_Size')
+    #tb_logger = pl_loggers.TensorBoardLogger(save_dir="/lightning_logs/", name=str(img_size)+'_'+trial_name+'_Image_Size')
 
     acc_val = 'cpu'
     if torch.cuda.is_available(): acc_val = 'gpu'
     trainer = pl.Trainer(
         logger=True,
-        enable_checkpointing=False,
+        enable_checkpointing=True,
         max_epochs=EPOCHS,
         accelerator=acc_val,
-        #callbacks=[PyTorchLightningPruningCallback(trial, monitor="valid_loss")]
+        callbacks=[EarlyStopping(monitor="f1_score", mode="max")]
     )
-
 
     hyperparameters = dict(dropout=dropout, batchsize=BATCHSIZE, learning_rate=LEARNING_RATE)
     trainer.logger.log_hyperparams(hyperparameters)
+    #trainer.logger.log('batchsize', BATCHSIZE)
+    #trainer.logger.log('learning_rate', LEARNING_RATE)
     trainer.fit(model, train_loader,val_loader )
+    
+    #trainer.test(ckpt_path='best', dataloaders=test_loader)
 
-    return trainer.callback_metrics["valid_loss"].item()
-
-
+    return trainer.callback_metrics["f1_score"].item()
 
 if __name__ == '__main__':
 
@@ -403,7 +359,7 @@ if __name__ == '__main__':
         optuna.pruners.MedianPruner()
     )
 
-    study = optuna.create_study(direction="minimize", pruner=pruner)
+    study = optuna.create_study(direction="maximize", pruner=pruner)
     study.optimize(objective, n_trials=None, timeout=None)
 
     print("Number of finished trials: {}".format(len(study.trials)))

@@ -29,3 +29,4 @@ rest_id_list.txt
 test.py
 check_predictions.py
 /lightning_logs
+/Code/PyTorch/lightning_logs
