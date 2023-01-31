@@ -24,14 +24,59 @@ from pytorch_lightning.callbacks import TQDMProgressBar
 from torchmetrics.classification import BinaryPrecision
 from torchmetrics.classification import BinaryAccuracy
 from torchmetrics.classification import BinaryRecall
-
+from pytorch_lightning.callbacks import Callback
+from pytorch_lightning import LightningModule
+from pytorch_lightning import Trainer
+import warnings
 
 
 PERCENT_VALID_EXAMPLES = 0.1
 PERCENT_TEST_EXAMPLES = 0.1
 CLASSES = 2
-EPOCHS = 15
+EPOCHS = 100
+LOGGER_PATH = '/pvol/logs/'
+LOG_NAME = 'advanced_logger_tests/'
+IMG_PATH = '/pvol/Ecklonia_Database/'
 
+class PyTorchLightningPruningCallback(Callback):
+    """PyTorch Lightning callback to prune unpromising trials.
+    See `the example <https://github.com/optuna/optuna-examples/blob/
+    main/pytorch/pytorch_lightning_simple.py>`__
+    if you want to add a pruning callback which observes accuracy.
+    Args:
+        trial:
+            A :class:`~optuna.trial.Trial` corresponding to the current evaluation of the
+            objective function.
+        monitor:
+            An evaluation metric for pruning, e.g., ``val_loss`` or
+            ``val_acc``. The metrics are obtained from the returned dictionaries from e.g.
+            ``pytorch_lightning.LightningModule.training_step`` or
+            ``pytorch_lightning.LightningModule.validation_epoch_end`` and the names thus depend on
+            how this dictionary is formatted.
+    """
+
+    def __init__(self, trial: optuna.trial.Trial, monitor: str) -> None:
+        super().__init__()
+
+        self._trial = trial
+        self.monitor = monitor
+
+    def on_validation_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
+        epoch = pl_module.current_epoch
+
+        current_score = trainer.callback_metrics.get(self.monitor)
+        if current_score is None:
+            message = (
+                "The metric '{}' is not in the evaluation logs for pruning. "
+                "Please make sure you set the correct metric name.".format(self.monitor)
+            )
+            warnings.warn(message)
+            return
+
+        self._trial.report(current_score, step=epoch)
+        if self._trial.should_prune():
+            message = "Trial was pruned at epoch {}.".format(epoch)
+            raise optuna.TrialPruned(message)
 
 class GeneralDataset(Dataset):
     def __init__(self, img_size, test_list, test):
@@ -41,7 +86,7 @@ class GeneralDataset(Dataset):
             self.data = self.data + test_list[1]
             self.class_map = {"Ecklonia" : 0, "Others": 1}
         else: 
-            self.imgs_path = '/pvol' + '/' + str(img_size)+ '_images_fix/'
+            self.imgs_path = IMG_PATH + str(img_size)+ '_images/'
             file_list = [self.imgs_path + 'Others', self.imgs_path + 'Ecklonia']
             self.data = []
             for class_path in file_list:
@@ -66,13 +111,14 @@ class GeneralDataset(Dataset):
         img_path, class_name = self.data[idx]
         img = cv2.imread(img_path)
         class_id = self.class_map[class_name]
-        img_tensor = transforms.ToTensor()(img)
+        train_transforms = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
+        img_tensor = train_transforms(img)
         class_id = torch.tensor(class_id)
         return img_tensor, class_id
 
 class UniformDataset(Dataset):
     def __init__(self, img_size):
-        self.imgs_path = '/pvol' + '/' + str(img_size)+ '_images_fix/'
+        self.imgs_path = IMG_PATH + str(img_size)+ '_images/'
         file_list = [self.imgs_path + 'Others', self.imgs_path + 'Ecklonia']
         #print(file_list)
         self.data = []
@@ -91,15 +137,17 @@ class UniformDataset(Dataset):
         img_path, class_name = self.data[idx]
         img = cv2.imread(img_path)
         class_id = self.class_map[class_name]
-        img_tensor = transforms.ToTensor()(img)
+        train_transforms = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),]
+        )
+        img_tensor = train_transforms(img)
         class_id = torch.tensor(class_id)
         return img_tensor, class_id
 
 class MixedDataset(Dataset):
     def __init__(self, img_size, PERCENT_TEST_EXAMPLES):
         self.data = []
-        self.imgs_path = '/pvol' + '/' + str(img_size)+ '_images_fix/'
-        self.pad_imgs_path = '/pvol' + '/' + str(img_size)+ '_images_fix/Padding/'
+        self.imgs_path = IMG_PATH + str(img_size)+ '_images/'
+        self.pad_imgs_path = IMG_PATH + str(img_size)+ '_images/Padding/'
         #####################
         # Get unpadded images
         #####################
@@ -152,7 +200,11 @@ class MixedDataset(Dataset):
         img_path, class_name = self.data[idx]
         img = cv2.imread(img_path)
         class_id = self.class_map[class_name]
-        img_tensor = transforms.ToTensor()(img)
+        train_transforms = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),]
+        )
+        img_tensor = train_transforms(img)
+        #img_tensor = transforms.ToTensor()(img)
+        #img_tensor = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])(img_tensor)
         class_id = torch.tensor(class_id)
         return img_tensor, class_id
 
@@ -188,7 +240,23 @@ class KelpClassifier(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         x, y = batch
         y_hat = self(x)
+        prob = F.softmax(y_hat, dim=1)
         loss = F.cross_entropy(y_hat, y)
+        top_p, top_class = prob.topk(1, dim = 1)
+        top_class = torch.reshape(top_class, (-1,))
+        accuracy = self.accuracy(top_class, y)
+        
+        f1_metric = BinaryF1Score().to('cuda')
+        f1_score = f1_metric(top_class, y)
+        prec_metric = BinaryPrecision().to('cuda')
+        prec_score = prec_metric(top_class, y)
+        rec_metric = BinaryRecall().to('cuda')
+        rec_score = rec_metric(top_class, y)
+        self.log('train_recall', rec_score)
+        self.log('train_precision', prec_score)
+        self.log('train_f1_score', f1_score)
+        self.log('train_loss', loss)
+        self.log('train_accuracy', accuracy)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -266,8 +334,8 @@ def image_to_tb(self, batch, batch_idx):
     return batch_idx
 
 def get_test_dataset(img_size, PERCENT_TEST_EXAMPLES):
-    unpad_path = '/pvol/' + str(img_size)+ '_images_fix/'
-    pads_path = '/pvol/' + str(img_size)+ '_images_fix/Padding/'
+    unpad_path = IMG_PATH + str(img_size)+ '_images/'
+    pads_path = IMG_PATH + str(img_size)+ '_images/Padding/'
     both_path = [unpad_path, pads_path]
     unpad_file_list = [unpad_path + 'Others', unpad_path + 'Ecklonia']
     pad_file_list =  [pads_path + 'Others', pads_path + 'Ecklonia']
@@ -309,7 +377,7 @@ def objective(trial: optuna.trial.Trial) -> float:
     dropout = trial.suggest_float("dropout", 0.2, 0.5)
     BATCHSIZE = trial.suggest_int("batchsize", 8, 128)
     LEARNING_RATE = trial.suggest_float(
-        "learning_rate_init", 1e-5, 1e-3, log=True
+        "learning_rate_init", 1e-6, 1e-4, log=True
     )
     ##############
     # Data Loading
@@ -335,6 +403,7 @@ def objective(trial: optuna.trial.Trial) -> float:
     if torch.cuda.is_available(): acc_val = 'gpu'
     trainer = pl.Trainer(
         logger=True,
+        default_root_dir=LOGGER_PATH+LOG_NAME,
         enable_checkpointing=True,
         max_epochs=EPOCHS,
         accelerator=acc_val,
