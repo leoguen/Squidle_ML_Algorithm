@@ -35,12 +35,14 @@ writer = SummaryWriter()
 
 PERCENT_VALID_EXAMPLES = 0.1
 PERCENT_TEST_EXAMPLES = 0.1
+LIMIT_TRAIN_BATCHES = 1.0
+LIMIT_VAL_BATCHES = 1.0
 CLASSES = 2
-EPOCHS = 50
+EPOCHS = 30
 LOGGER_PATH = '/pvol/logs/'
-LOG_NAME = 'Adv_Log_Imagenet_Mean/'
+LOG_NAME = 'img_size_test/'
 IMG_PATH = '/pvol/Ecklonia_Database/'
-
+'''
 class PyTorchLightningPruningCallback(Callback):
     """PyTorch Lightning callback to prune unpromising trials.
     See `the example <https://github.com/optuna/optuna-examples/blob/
@@ -68,7 +70,7 @@ class PyTorchLightningPruningCallback(Callback):
         epoch = pl_module.current_epoch
 
         current_score = trainer.callback_metrics.get(self.monitor)
-        '''
+        
         if current_score is None:
             message = (
                 "The metric '{}' is not in the evaluation logs for pruning. "
@@ -76,12 +78,12 @@ class PyTorchLightningPruningCallback(Callback):
             )
             warnings.warn(message)
             return
-        '''
+        
         self._trial.report(current_score, step=epoch)
         if self._trial.should_prune():
             message = "Trial was pruned at epoch {}.".format(epoch)
             raise optuna.TrialPruned(message)
-
+'''
 class GeneralDataset(Dataset):
     def __init__(self, img_size, test_list, test):
         if test: # True test dataset is returned
@@ -214,12 +216,13 @@ class MixedDataset(Dataset):
 
 
 class KelpClassifier(pl.LightningModule):
-    def __init__(self, backbone_name, no_filters, learning_rate, dropout, batch_size):
+    def __init__(self, backbone_name, no_filters, learning_rate, dropout, batch_size, trainer, pl_module ,trial, monitor):
         super().__init__()
         # init a pretrained resnet
-
-        self._trial = optuna.trial.Trial
-        self.monitor = 'f1_score'
+        self.trainer = trainer
+        self.pl_module = pl_module
+        self._trial = trial
+        self.monitor = monitor
         self.hparams.learning_rate = learning_rate
         self.accuracy = torchmetrics.Accuracy(task='binary')      
         backbone = getattr(models, backbone_name)(weights='DEFAULT')
@@ -234,26 +237,27 @@ class KelpClassifier(pl.LightningModule):
         
         self.classifier = nn.Linear(num_filters,  num_target_classes)
         self.training_losses = [[],[],[],[],[]]
+        self.valid_losses = [[],[],[],[],[]]
         self.save_hyperparameters()
-    '''
+
     def on_validation_end(self):
-        epoch = self.current_epoch
-        current_score = self.trainer.callback_metrics.get(self.monitor)
-        
-        if current_score is None:
-            message = (
-                "The metric '{}' is not in the evaluation logs for pruning. "
-                "Please make sure you set the correct metric name.".format(self.monitor)
-            )
-            warnings.warn(message)
-            return
-        
-        print('Pruning algorithm runs')
-        self._trial.report(current_score, step=epoch)
-        if self._trial.should_prune():
-            message = "Trial was pruned at epoch {}.".format(epoch)
-            raise optuna.TrialPruned(message)
-    '''
+            epoch = self.current_epoch
+
+            current_score = self.trainer.callback_metrics.get(self.monitor)
+            
+            if current_score is None:
+                message = (
+                    "The metric '{}' is not in the evaluation logs for pruning. "
+                    "Please make sure you set the correct metric name.".format(self.monitor)
+                )
+                warnings.warn(message)
+                return
+            
+            self._trial.report(current_score, step=epoch)
+            if self._trial.should_prune():
+                message = "Trial was pruned at epoch {}.".format(epoch)
+                raise optuna.TrialPruned(message)
+    
     def forward(self, x):
         self.feature_extractor.eval()
         with torch.no_grad():
@@ -292,6 +296,15 @@ class KelpClassifier(pl.LightningModule):
             log_to_graph(self, metric_mean, var, name, self.global_step)
         self.training_losses = [[],[],[],[],[]]  # reset for next epoch
     
+    def on_validation_epoch_end(self):
+        name = 'valid'
+        metric = ['loss', 'accuracy', 'f1_score', 'precision', 'recall']
+        for i, var in enumerate(metric):
+            metric_list = self.valid_losses[i]
+            metric_mean = np.mean(metric_list)
+            log_to_graph(self, metric_mean, var, name, self.global_step)
+        self.valid_losses = [[],[],[],[],[]]  # reset for next epoch
+    
     def validation_step(self, batch, batch_idx):
         x, y = batch
         y_hat = self(x)
@@ -308,11 +321,14 @@ class KelpClassifier(pl.LightningModule):
         prec_score = prec_metric(top_class, y)
         rec_metric = BinaryRecall().to('cuda')
         rec_score = rec_metric(top_class, y)
-        log_to_graph(self, rec_score, 'recall', 'valid', self.global_step)
-        log_to_graph(self, prec_score, 'precision', 'valid', self.global_step)
-        log_to_graph(self, f1_score, 'f1_score', 'valid', self.global_step)
-        log_to_graph(self, accuracy, 'accuracy', 'valid', self.global_step)
-        log_to_graph(self, loss, 'loss', 'valid', self.global_step)
+        metrics=[loss.item(), accuracy.item(), f1_score.item(), prec_score.item(), rec_score.item()]
+        for i, metric in enumerate(metrics):
+            self.valid_losses[i].append(metric)
+        #log_to_graph(self, rec_score, 'recall', 'valid', self.global_step)
+        #log_to_graph(self, prec_score, 'precision', 'valid', self.global_step)
+        #log_to_graph(self, f1_score, 'f1_score', 'valid', self.global_step)
+        #log_to_graph(self, accuracy, 'accuracy', 'valid', self.global_step)
+        #log_to_graph(self, loss, 'loss', 'valid', self.global_step)
         self.log('f1_score', f1_score)
         return f1_score
 
@@ -404,7 +420,7 @@ def get_test_dataset(img_size, PERCENT_TEST_EXAMPLES):
     return both_data
     
 def objective(trial: optuna.trial.Trial) -> float:
-    img_size = 288
+    #img_size = 288
     backbone_name, no_filters = ['regnet_x_32gf', 0]
     # We optimize the number of layers, hidden units in each layer and dropouts.
     
@@ -416,6 +432,16 @@ def objective(trial: optuna.trial.Trial) -> float:
     LEARNING_RATE = trial.suggest_float(
         "learning_rate_init", 1e-6, 1e-4, log=True
     ) #min needs to be 1e-6
+    img_size = trial.suggest_categorical("img_size", [  "256", 
+                    "288", 
+                    "320", 
+                    '400', 
+                    '448',
+                    '480', 
+                    '512', 
+                    '544',
+                    '576',
+                    '608' ])
     ##############
     # Data Loading
     ##############
@@ -423,7 +449,7 @@ def objective(trial: optuna.trial.Trial) -> float:
     test_set = GeneralDataset(img_size, test_list, test = True)
     train_val_set = GeneralDataset(img_size, test_list, test = False)
     
-    training_set, validation_set = torch.utils.data.random_split(train_val_set,[0.90, 0.10], generator=torch.Generator().manual_seed(43))
+    training_set, validation_set = torch.utils.data.random_split(train_val_set,[0.90, 0.10], generator=torch.Generator().manual_seed(123))
 
     # Create data loaders for our datasets; shuffle for training and for validation
     train_loader = torch.utils.data.DataLoader(training_set, BATCHSIZE, shuffle=True, num_workers=os.cpu_count())
@@ -431,7 +457,7 @@ def objective(trial: optuna.trial.Trial) -> float:
     val_loader = torch.utils.data.DataLoader(validation_set, BATCHSIZE, shuffle=False, num_workers=os.cpu_count())
 
     test_loader = torch.utils.data.DataLoader(test_set, batch_size=1, shuffle=False, num_workers=os.cpu_count())
-    model = KelpClassifier(backbone_name, no_filters, LEARNING_RATE, dropout, BATCHSIZE)
+    
 
     #tb_logger = pl_loggers.TensorBoardLogger(save_dir="/lightning_logs/", name=str(img_size)+'_'+trial_name+'_Image_Size')
 
@@ -439,21 +465,33 @@ def objective(trial: optuna.trial.Trial) -> float:
     if torch.cuda.is_available(): acc_val = 'gpu'
     trainer = pl.Trainer(
         logger=True,
-        default_root_dir=LOGGER_PATH+LOG_NAME,
+        default_root_dir=LOGGER_PATH+LOG_NAME+'/'+str(img_size)+'/',
         enable_checkpointing=True,
         max_epochs=EPOCHS,
         accelerator=acc_val,
         callbacks=[EarlyStopping(monitor="f1_score", mode="max")],
-        limit_train_batches=1.0,
-        limit_val_batches=1.0,
+        limit_train_batches=LIMIT_TRAIN_BATCHES,
+        limit_val_batches=LIMIT_VAL_BATCHES,
         precision=16,
         log_every_n_steps=50
     )
 
-    hyperparameters = dict(dropout=dropout, batchsize=BATCHSIZE, learning_rate=LEARNING_RATE)
-    trainer.logger.log_hyperparams(hyperparameters)
+    
     #trainer.logger.log('batchsize', BATCHSIZE)
     #trainer.logger.log('learning_rate', LEARNING_RATE)
+
+    model = KelpClassifier(backbone_name, 
+                            no_filters, 
+                            LEARNING_RATE, 
+                            dropout, 
+                            BATCHSIZE, 
+                            trial = trial, 
+                            monitor ='f1_score', 
+                            trainer= trainer,  
+                            pl_module = LightningModule)
+
+    hyperparameters = dict(dropout=dropout, batchsize=BATCHSIZE, learning_rate=LEARNING_RATE)
+    trainer.logger.log_hyperparams(hyperparameters)
     trainer.fit(model, train_loader,val_loader )
     # Handle pruning based on the intermediate value.
     if trial.should_prune():
