@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 
 class modify_annotation_set():
-    
+    '''
     def get_status(self, csv_file_df, here):
 
         # Get number of Ecklonia radiata entries
@@ -27,52 +27,30 @@ class modify_annotation_set():
         norm_data_df['distr_num'] = norm_data_df['distr_num'] / norm_data_df['distr_num'].sum()
 
         return num_eck, norm_data_df, og_distr_data_df
+    '''
+    def __init__(self):
+        self.sibling = True
 
+    def delete_entries(self, csv_file_df, label, value):
+        shape_before = csv_file_df.shape[0]
+        csv_file_df = csv_file_df.loc[csv_file_df[label] != value]
+        print('Deleted {} rows; {} .'.format(shape_before-csv_file_df.shape[0], value))
+        return csv_file_df
+    
     def delete_review(self, csv_file_df): 
         shape_before = csv_file_df.shape[0]
         og_shape =shape_before
-        csv_file_df = csv_file_df.loc[csv_file_df['tag_names'] != 'Flagged For Review']
-
-        print('Deleted {} rows; "Flagged For Review" .'.format(shape_before-csv_file_df.shape[0]))
-        shape_before = csv_file_df.shape[0]
-
-        csv_file_df = csv_file_df.loc[csv_file_df['label_uuid'] != '2a00a85e-6675-4d69-ab4f-197992dcead7'] # Unscorable
-        csv_file_df = csv_file_df.loc[csv_file_df['label_name'] != 'Unscorable'] # Unscorable
-        csv_file_df = csv_file_df.loc[csv_file_df['label_uuid'] != 'a00b6b37-0dc0-4bd5-893b-4ae1788fa96d'] # Unscorable
-        print('Deleted {} rows; Unscorable.'.format(shape_before-csv_file_df.shape[0]))
-        shape_before = csv_file_df.shape[0]
-
-        csv_file_df = csv_file_df.loc[csv_file_df['label_uuid'] != '79a9095f-115c-45a0-9423-47d1e92acb7f'] # Unknown
-        csv_file_df = csv_file_df.loc[csv_file_df['label_uuid'] != '8a4c6e1b-66a1-48a2-b1d8-a36d6af483ef'] # Unknown
+        red_list_df = pd.read_csv("/home/ubuntu/IMAS/Code/PyTorch/Annotation_Sets/red_list.csv", dtype=str, usecols=['label_name'])
+        for value in red_list_df['label_name']:
+            csv_file_df = self.delete_entries(csv_file_df, 'label_name', value)
         
-        print('Deleted {} rows; Unknown.'.format(shape_before-csv_file_df.shape[0]))
-        shape_before = csv_file_df.shape[0]
-        
-
-        csv_file_df = csv_file_df.loc[csv_file_df['point_media_path_best'].str.startswith('http')==True]
-
-        print('Deleted {} rows; wrong URL.'.format(shape_before-csv_file_df.shape[0]))
-        shape_before = csv_file_df.shape[0]
-        
-        csv_file_df['point_y'].replace('', np.nan, inplace=True)
-        csv_file_df.dropna(subset=['point_y'], inplace=True)
-
-        print('Deleted {} rows; empty values for point_y.'.format(shape_before-csv_file_df.shape[0]))
-        shape_before = csv_file_df.shape[0]
-
-        #csv_file_df = csv_file_df[csv_file_df['point_pose_alt'].apply(lambda x: str(x).replace('.', '', 1).isdigit())]
-        #print('Deleted {} rows; missplaced rows.'.format(shape_before-csv_file_df.shape[0]))
-        #shape_before = csv_file_df.shape[0]
-        
-        print('The csv file consists of {} entries, {} were deleted. \nThe file is being saved as {}.'.format(csv_file_df.shape[0], (og_shape-csv_file_df.shape[0]), str(len(csv_file_df.index))+'_REVIEWED_ANNOTATION_LIST.csv'))
-
+        csv_file_df = self.delete_entries(csv_file_df, 'tag_names', 'Flagged For Review')
         #print('Not being saved to reduce space.')
         # Update the index after deleting entries 
         csv_file_df.reset_index(drop=True, inplace=True)
-        csv_file_df.to_csv(here+'/Annotation_Sets/'+ str(len(csv_file_df.index))+'_REVIEWED_ANNOTATION_LIST.csv',index=False)
-        
+        self.save_csv(csv_file_df, 'review')
         return csv_file_df
-    
+    '''
     def create_adap_set(self, csv_file_df, here, num_eck, norm_data_df, og_distr_data_df):
         sma_norm_data_df = norm_data_df.copy()
         
@@ -154,43 +132,89 @@ class modify_annotation_set():
         print('Saving {}'.format(len(csv_file_df.index)))
         csv_file_df.to_csv(here+'/Annotation_Sets/'+ str(len(csv_file_df.index))+'_NORMALIZED_FULL_ANNOTATION_LIST.csv',index=False)
         print('Saved {} entries with filename: {}'.format(len(csv_file_df.index), (str(len(csv_file_df.index))+'_NORMALIZED_FULL_ANNOTATION_LIST.csv')))
+    '''
+    def get_norm_csv(self, csv_file_df):
+        # Get list with all labels and count of each
+        classes_df = csv_file_df.pivot_table(index = ['label_name'], aggfunc ='size')
+        if self.sibling:
+            sib_list_df = pd.read_csv("/home/ubuntu/IMAS/Code/PyTorch/Annotation_Sets/sibling_list.csv", dtype=str, usecols=['Sibling_name'])
+            # Artificially increase number of sibling entries
+            sib_classes_df = classes_df
+            for label in sib_list_df['Sibling_name']:
+                sib_classes_df.loc[label] = sib_classes_df.loc[label] * 5
+
+            #!!!!!!!!!!!!!!
+            # Find better way to increase siblings
+            #!!!!!!!!!!!!!!
 
 
 
+            # Normalize all classes so that the overall number is equal to Ecklonia entries, number slightly increazed by 0.95 because of download errors in later process
+            norm_classes_df = sib_classes_df.div(classes_df.drop('Ecklonia radiata').sum()*0.95)
+        else:
+            # Normalize all classes so that the overall number is equal to Ecklonia entries, number slightly increazed by 0.95 because of download errors in later process
+            norm_classes_df = classes_df.div(classes_df.drop('Ecklonia radiata').sum()*0.95)
+        
+        norm_classes_df = (norm_classes_df.mul(classes_df['Ecklonia radiata'])).astype(int)
+
+        # Correct Ecklonia number to all entries
+        norm_classes_df['Ecklonia radiata'] = classes_df['Ecklonia radiata']
+        return norm_classes_df, classes_df
+    
+    def normalize_set(self, csv_file_df):
+        norm_classes_df, classes_df = self.get_norm_csv(csv_file_df)
+        csv_file_df = csv_file_df.reset_index()
+        np.random.seed(10)
+        print('Normalizing Entries')
+        counter = 0
+        for label, amount in norm_classes_df.items():
+            print('Processed {} out of {}'.format(counter, len(norm_classes_df)), end='\r')
+            remove_n = classes_df[label] - amount
+            csv_except_df = csv_file_df.loc[csv_file_df['label_name'] == label]
+            drop_indices = np.random.choice(csv_except_df.index, remove_n, replace=False)
+            csv_file_df = csv_file_df.drop(drop_indices)
+            counter +=1
+            '''
+            try:
+                print('{} entries: {}'.format(label, csv_file_df.pivot_table(index = ['label_name'], aggfunc ='size')[label]))
+            except:
+                print('{} all {} entries deleted'.format(label, remove_n))
+            '''
+        print('Normalized Dataset size: {} with {} classes'.format(csv_file_df.pivot_table(index = ['label_name'], aggfunc ='size').sum(), len(csv_file_df.pivot_table(index = ['label_name'], aggfunc ='size'))))
+        
+        csv_file_df.reset_index(drop=True, inplace=True)
+        self.save_csv(csv_file_df, 'normalized')
+        return csv_file_df
+
+    def save_csv(self, csv_file_df, description):
+        
+        if self.sibling:
+            path =here+'/Annotation_Sets/'+ str(len(csv_file_df.index))+'_sibling_'+ description +'_list.csv'
+        else: 
+            path = here+'/Annotation_Sets/'+ str(len(csv_file_df.index))+'_'+ description +'_list.csv'
+        
+        csv_file_df.to_csv(path,index=False)
+        print('Saved {} entries with filename: {}'.format(len(csv_file_df.index), path))
 
     
 if __name__ == "__main__":
     pd.set_option("display.max_rows", None, "display.max_columns", None)
-    # dtype={'first_column': 'str', 'second_column': 'str'}
+    
     here = os.path.dirname(os.path.abspath(__file__))
-    list_name = '/Annotation_Sets/Full_Annotation_List.csv'
+    #list_name = '/Annotation_Sets/Full_Annotation_List.csv'
     print('Loading CSV file, this may take a while.')
+    list_name = '/Annotation_Sets/1135142_review_list.csv'
     csv_file_df= pd.read_csv(here + list_name, on_bad_lines='skip', dtype={'label_name': 'str', 'tag_names': 'str'}, low_memory=False) 
+    
     print('Loaded {} entries with filename: {}'.format(len(csv_file_df.index), list_name))
-    '''
-    dtype=
-        {'label_id': 'int', 
-        'label_name': 'str',
-        'label_uuid': 'str',
-        'point.data.user_created': 'str',
-        'point.id': 'int',
-        'point.media.id': 'str',
-        'point.media.key': 'str',
-        'point.media.path_best': 'str',
-        'point.pose.alt': 'float',
-        'point.pose.dep': 'float',
-        'point.pose.lat': 'float',
-        'point.pose.lon': 'float',
-        'point.pose.timespamp': 'str',
-        'point_x': 'float',
-        'point_y': 'float',
-        'tag_names': 'str',
-        })
-    '''
+
     csv_file_df.columns = csv_file_df.columns.str.replace('[.]', '_', regex=True)
 
     data = modify_annotation_set()
     
-    csv_file_df = data.delete_review(csv_file_df)
-    num_eck, norm_data_df, og_distr_data_df = data.get_status(csv_file_df, here)
-    data.create_adap_set(csv_file_df, here, num_eck, norm_data_df, og_distr_data_df)
+    #csv_file_df = data.delete_review(csv_file_df)
+    
+    data.normalize_set(csv_file_df)
+    #num_eck, norm_data_df, og_distr_data_df = data.get_status(csv_file_df, here)
+    
+    #data.create_adap_set(csv_file_df, here, num_eck, norm_data_df, og_distr_data_df)

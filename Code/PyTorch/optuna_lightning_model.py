@@ -36,12 +36,12 @@ writer = SummaryWriter()
 
 PERCENT_VALID_EXAMPLES = 0.1
 PERCENT_TEST_EXAMPLES = 0.1
-LIMIT_TRAIN_BATCHES = 1.0
-LIMIT_VAL_BATCHES = 1.0
+LIMIT_TRAIN_BATCHES = 0.1
+LIMIT_VAL_BATCHES = 0.1
 CLASSES = 2
-EPOCHS = 10
+EPOCHS = 2
 LOGGER_PATH = '/pvol/logs/'
-LOG_NAME = 'test_implement_testing/'
+LOG_NAME = 'test_less_params/'
 IMG_PATH = '/pvol/Ecklonia_Database/'
 
 class GeneralDataset(Dataset):
@@ -185,59 +185,37 @@ class MixedDataset(Dataset):
 
 
 class KelpClassifier(pl.LightningModule):
-    def __init__(self, backbone_name, no_filters, learning_rate, batch_size, trainer, pl_module ,trial, monitor, img_size): #dropout
+    def __init__(self, backbone_name, no_filters, learning_rate, trainer, trial, img_size): #dropout
         super().__init__()
         # init a pretrained resnet
         self.img_size = img_size
         self.trainer = trainer
-        self.pl_module = pl_module
+        self.pl_module = LightningModule
         self._trial = trial
-        self.monitor = monitor
+        self.monitor = 'f1_score'
         self.hparams.learning_rate = learning_rate
         self.accuracy = torchmetrics.Accuracy(task='binary')
-        
-        # OG code
-        '''
+        self.backbone_name = backbone_name
         backbone = getattr(models, backbone_name)(weights='DEFAULT')
-        num_filters = no_filters
-        if num_filters == 0:
-            num_filters = backbone.fc.in_features
-            print(num_filters)
-        layers = list(backbone.children())[:-1]
-        self.feature_extractor = nn.Sequential(*layers)
-        num_target_classes = 2
-        
-        self.classifier = nn.Linear(num_filters,  num_target_classes)
         #implementing inception_v3
-        '''
-        self.model = models.inception_v3(weights='DEFAULT') 
-        self.model.aux_logits = False
-        
-        self.model.fc = nn.Sequential(
+
+        if self.backbone_name == 'inception_v3': # Initialization for Inception_v3
+        #self.model = models.inception_v3(weights='DEFAULT') 
+            self.model = backbone
+            self.model.aux_logits = False
+            self.model.fc = nn.Sequential(
             nn.Linear(self.model.fc.in_features, 10),
             nn.Linear(10, 2)
-        )
+            )
+        else: # Initialization for all other models
+            num_filters = no_filters      
+            if num_filters == 0:
+                num_filters = backbone.fc.in_features
+            layers = list(backbone.children())[:-1]
+            self.feature_extractor = nn.Sequential(*layers)
+            num_target_classes = 2
+            self.classifier = nn.Linear(num_filters,  num_target_classes)
 
-        '''
-        num_filters = no_filters      
-        if num_filters == 0:
-            num_filters = backbone.fc.in_features
-            print(num_filters)
-        layers = list(backbone.children())[:-1]
-        self.feature_extractor = nn.Sequential(*layers)
-        num_target_classes = 2
-        
-        self.classifier = nn.Linear(num_filters,  num_target_classes)
-        '''
-        '''
-        for parameter in backbone.parameters():
-            parameter.requires_grad = False
-        
-        self.backbone.fc = nn.Sequential(
-        nn.Linear(backbone.fc.in_features, 10),
-        nn.Linear(10, 2)
-        )
-        '''
         self.training_losses = [[],[],[],[],[]]
         self.valid_losses = [[],[],[],[],[]]
         self.test_losses = [[],[],[],[],[]]
@@ -265,16 +243,14 @@ class KelpClassifier(pl.LightningModule):
 
     def forward(self, x):
         
-
-        self.model.eval()
-        x = self.model(x)
-        '''
-        self.feature_extractor.eval()
-        print(x.unsqueeze(0).shape)
-        with torch.no_grad():
-            representations = self.feature_extractor(x).flatten(1)
-        x = self.classifier(representations)
-        '''
+        if self.backbone_name == 'inception_v3':
+            self.model.eval()
+            x = self.model(x)
+        else:
+            self.feature_extractor.eval()
+            with torch.no_grad():
+                representations = self.feature_extractor(x).flatten(1)
+            x = self.classifier(representations)
         return x
 
     def training_step(self, batch, batch_idx):
@@ -443,7 +419,7 @@ def get_test_dataset(img_size, PERCENT_TEST_EXAMPLES):
     
 def objective(trial: optuna.trial.Trial) -> float:
     #img_size = 288
-    backbone_name, no_filters = ['regnet_x_32gf', 0]
+    backbone_name, no_filters = ['inception_v3', 0]
     # We optimize the number of layers, hidden units in each layer and dropouts.
     
     ###############
@@ -502,12 +478,11 @@ def objective(trial: optuna.trial.Trial) -> float:
     model = KelpClassifier(backbone_name, 
                             no_filters, 
                             LEARNING_RATE, 
-                            #dropout, 
-                            BATCHSIZE, 
+                            #BATCHSIZE, 
                             trial = trial, 
-                            monitor ='f1_score', 
+                            #monitor ='f1_score', 
                             trainer= trainer,  
-                            pl_module = LightningModule, 
+                            #pl_module = LightningModule, 
                             img_size=img_size)
     #dropout=dropout,
     hyperparameters = dict(learning_rate=LEARNING_RATE, image_size = img_size)
