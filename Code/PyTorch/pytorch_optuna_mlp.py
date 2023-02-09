@@ -1,17 +1,3 @@
-
-"""Optimization study for a PyTorch CNN with Optuna.
-Hyperparameter optimization example of a PyTorch Convolutional Neural Network
-for the MNIST dataset of handwritten digits using the hyperparameter
-optimization framework Optuna.
-The MNIST dataset contains 60,000 training images and 10,000 testing images,
-where each sample is a small, square, 28×28 pixel grayscale image of
-handwritten single digits between 0 and 9.
-This script requires installing the following packages:
-torch, pandas, optuna
-Author: elena-ecn
-Date: 2021
-"""
-
 import os
 import torch
 import torchvision
@@ -20,7 +6,69 @@ import torch.nn.functional as F
 import torch.optim as optim
 import optuna
 from optuna.trial import TrialState
+from torch.utils.data.dataset import Dataset
+import glob
+from PIL import Image
+import cv2
+from torchvision import transforms
 
+IMG_PATH = '/pvol/Ecklonia_Database/'
+IMG_SIZE = 24
+
+class GeneralDataset(Dataset):
+    def __init__(self, img_size, test_list, test, inception):
+        self.inception = inception
+        if test: # True test dataset is returned
+            # Add unpadded and padded entries to data
+            self.data = test_list['test','test']
+            #self.data = self.data + test_list[1]
+            self.class_map = {"Ecklonia" : 0, "Others": 1}
+        else: 
+            self.imgs_path = IMG_PATH + str(img_size)+ '_images/'
+            file_list = [self.imgs_path + 'Others', self.imgs_path + 'Ecklonia']
+            self.data = []
+            for class_path in file_list:
+                class_name = class_path.split("/")[-1]
+                for img_path in glob.glob(class_path + "/*.jpg"):
+                    self.data.append([img_path, class_name])
+            
+            # Delete all entries that are used in test_list
+            #del_counter = len(self.data)
+            #print('Loaded created dataset of {} entries. \nNow deleting {} duplicate entries.'.format(len(self.data), len(test_list[0])))
+            #for test_entry in (test_list[0]):
+            #    if test_entry in self.data:
+            #        self.data.remove(test_entry)
+
+            #print('Deleted {} duplicate entries'.format(del_counter-len(self.data)))
+            self.class_map = {"Ecklonia" : 0, "Others": 1}
+        
+    def __len__(self):
+        return len(self.data)    
+    
+    def __getitem__(self, idx):
+        img_path, class_name = self.data[idx]
+        img = cv2.imread(img_path)
+        class_id = self.class_map[class_name]
+        #train_transforms = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
+        #!InceptionV3
+        img = Image.fromarray(img)
+        if self.inception:
+            train_transforms = transforms.Compose([
+            transforms.Resize((299, 299)),
+            transforms.ToTensor(), # ToTensor : [0, 255] -> [0, 1]
+            transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                std=[0.229, 0.224, 0.225])
+            ])
+        else:
+            train_transforms = transforms.Compose([
+            transforms.ToTensor(), # ToTensor : [0, 255] -> [0, 1]
+            transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                std=[0.229, 0.224, 0.225])
+            ])
+        img_tensor = train_transforms(img)
+        #print(type(img_tensor))
+        class_id = torch.tensor(class_id)
+        return img_tensor, class_id
 
 class Net(nn.Module):
     """CNN for the MNIST dataset of handwritten digits.
@@ -44,7 +92,7 @@ class Net(nn.Module):
             - drop_fc1 (float):                  Dropout ratio for FC1
         """
         super(Net, self).__init__() # Initialize parent class
-        in_size = 24 # Input image size (28 pixels)
+        in_size = IMG_SIZE # Input image size 
         kernel_size = 3 # Convolution filter size
 
         # Define the convolutional layers
@@ -62,7 +110,7 @@ class Net(nn.Module):
         self.fc2 = nn.Linear(num_neurons, 2) # Fully Connected layer 2
         self.p1 = drop_fc1 # Dropout ratio for FC1
 
-        # Initialize weights with the He initialization
+        # Initialize weights with the the initialization
         for i in range(1, num_conv_layers):
             nn.init.kaiming_normal_(self.convs[i].weight, nonlinearity='relu')
             if self.convs[i].bias is not None:
@@ -99,10 +147,6 @@ def train(network, optimizer):
     network.train()  # Set the module in training mode (only affects certain modules)
     for batch_i, (data, target) in enumerate(train_loader):  # For each batch
 
-        # Limit training data for faster computation
-        if batch_i * batch_size_train > number_of_train_examples:
-            break
-
         optimizer.zero_grad() # Clear gradients
         output = network(data.to(device)) # Forward propagation
         loss = F.nll_loss(output, target.to(device)) # Compute loss (negative log likelihood: −log(y))
@@ -110,33 +154,26 @@ def train(network, optimizer):
         optimizer.step() # Update weights
 
 
-def test(network):
-    """Tests the model.
+def valid(network):
+    """valids the model.
     Parameters:
         - network (__main__.Net): The CNN
     Returns:
-        - accuracy_test (torch.Tensor): The test accuracy
+        - accuracy_valid (torch.Tensor): The valid accuracy
     """
     network.eval() # Set the module in evaluation mode (only affects certain modules)
     correct = 0
-    tested_len = len(test_loader.dataset)
+    valid_len = len(val_loader.dataset)
     with torch.no_grad():  # Disable gradient calculation (when you are sure that you will not call Tensor.backward())
-        for batch_i, (data, target) in enumerate(test_loader):  # For each batch
-
-            # Limit testing data for faster computation
-            if batch_i * batch_size_test > number_of_test_examples:
-                print('Testing break because of limited test_examples')
-                tested_len = number_of_test_examples
-                break
-
+        for batch_i, (data, target) in enumerate(val_loader):  # For each batch
             output = network(data.to(device)) # Forward propagation
             pred = output.data.max(1, keepdim=True)[1] # Find max value in each row, return indexes of max values
+            #! Target has the correct values and pred the predicted values. Could prob use for loop and get TP, TN, FP, FN
             correct += pred.eq(target.to(device).data.view_as(pred)).sum()  # Compute correct predictions
 
-    accuracy_test = correct / tested_len
+    accuracy_valid = correct / valid_len
 
-    return accuracy_test
-
+    return accuracy_valid
 
 def objective(trial):
     """Objective function to be optimized by Optuna.
@@ -146,12 +183,12 @@ def objective(trial):
     Inputs:
         - trial (optuna.trial._trial.Trial): Optuna trial
     Returns:
-        - accuracy(torch.Tensor): The test accuracy. Parameter to be maximized.
+        - accuracy(torch.Tensor): The valid accuracy. Parameter to be maximized.
     """
 
-    # Define range of values to be tested for the hyperparameters
+    # Define range of values to be valided for the hyperparameters
     num_conv_layers = trial.suggest_int("num_conv_layers", 2, 3)  # Number of convolutional layers
-    num_filters = [int(trial.suggest_discrete_uniform("num_filter_"+str(i), 16, 128, 16)) for i in range(num_conv_layers)] # Number of filters for the convolutional layers
+    num_filters = [int(trial.suggest_int("num_filter_"+str(i), 16, 128, 16)) for i in range(num_conv_layers)] # Number of filters for the convolutional layers
     num_neurons = trial.suggest_int("num_neurons", 10, 400, 10)  # Number of neurons of FC1 layer
     drop_conv2 = trial.suggest_float("drop_conv2", 0.2, 0.5) # Dropout for convolutional layer 2
     drop_fc1 = trial.suggest_float("drop_fc1", 0.2, 0.5) # Dropout for FC1 layer
@@ -161,14 +198,14 @@ def objective(trial):
 
     # Generate the optimizers
     optimizer_name = trial.suggest_categorical("optimizer", ["Adam", "RMSprop", "SGD"])  # Optimizers
-    lr = trial.suggest_float("lr", 1e-5, 1e-1, log=True)                                 # Learning rates
+    lr = trial.suggest_float("lr", 1e-8, 1e-4, log=True)                                 # Learning rates
     optimizer = getattr(optim, optimizer_name)(model.parameters(), lr=lr)
 
     # Training of the model
     for epoch in range(n_epochs):
         train(model, optimizer)  # Train the model
-        accuracy = test(model)   # Evaluate the model
-
+        accuracy = valid(model)   # Evaluate the model
+        print(accuracy)
         # For pruning (stops trial early if not promising)
         trial.report(accuracy, epoch)
         # Handle pruning based on the intermediate value.
@@ -176,79 +213,61 @@ def objective(trial):
             raise optuna.exceptions.TrialPruned()
         
         model_scripted = torch.jit.script(model) # Export to TorchScript
-        model_scripted.save(HERE + "/Trials/{}_trial.pth".format(trial.number)) # Save
+        model_scripted.save('/pvol/MLP_Trials/{}_trial.pth'.format(trial.number)) # Save
 
     return accuracy
 
 
 if __name__ == '__main__':
 
-    # -------------------------------------------------------------------------
-    # Optimization study for a PyTorch CNN with Optuna
-    # -------------------------------------------------------------------------
-
     # Use cuda if available for faster computations
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # --- Parameters ----------------------------------------------------------
     n_epochs = 10          # Number of training epochs
-    batch_size_train = 64  # Batch size for training data
-    batch_size_test = 1000 # Batch size for testing data
+    batch_size = 64  # Batch size for training data
+    batch_size_valid = 64 # Batch size for validing data
     number_of_trials = 100 # Number of Optuna trials
     limit_obs = True       # Limit number of observations for faster computation
-    num_workers = 1        # Define number of CPUs working
+    num_workers=os.cpu_count()        # Define number of CPUs working
     split = [0.8, 0.2]     # Dataset split Training/Validation
 
     # *** Note: For more accurate results, do not limit the observations.
     #           If not limited, however, it might take a very long time to run.
     #           Another option is to limit the number of epochs. ***
-
-    if limit_obs:  # Limit number of observations
-        number_of_train_examples = 500 * batch_size_train  # Max train observations
-        number_of_test_examples = 50 * batch_size_test # Max test observations
-    else:
-        number_of_train_examples = 60000 # Max train observations
-        number_of_test_examples = 10000 # Max test observations
-    # -------------------------------------------------------------------------
+    
 
     # Make runs repeatable
     random_seed = 1
     torch.backends.cudnn.enabled = False  # Disable cuDNN use of nondeterministic algorithms
     torch.manual_seed(random_seed)
 
-    # Create directory 'files', if it doesn't exist, to save the dataset
-    directory_name = 'files'
-    if not os.path.exists(directory_name):
-        os.mkdir(directory_name)
 
     HERE = os.path.dirname(os.path.abspath(__file__))
-
-    # Create datasets for training & validation, download if necessary
-    full_set = torchvision.datasets.ImageFolder(HERE + '/images/', transform=torchvision.transforms.ToTensor())
-
-    training_set, validation_set = torch.utils.data.random_split(full_set,split, generator=torch.Generator().manual_seed(42))
-    # Create data loaders for our datasets; shuffle for training and for validation
-    train_loader = torch.utils.data.DataLoader(training_set, batch_size=batch_size_train, shuffle=True, num_workers=num_workers)
+    test_list = [0]
+    train_val_set = GeneralDataset(img_size = IMG_SIZE, test_list = test_list, test = False, inception = False)
     
+    training_set, validation_set, throw_away = torch.utils.data.random_split(train_val_set,[0.090, 0.010, 0.9], generator=torch.Generator().manual_seed(123))
+
+    
+    # Create data loaders for our datasets; shuffle for training and for validation
+    train_loader = torch.utils.data.DataLoader(training_set, batch_size, shuffle=True, num_workers=os.cpu_count())
+    
+    val_loader = torch.utils.data.DataLoader(validation_set, batch_size, shuffle=False, num_workers=os.cpu_count())
+
+
     print('Number of training images: {}'.format(len(train_loader.dataset)))
     
-    test_loader = torch.utils.data.DataLoader(validation_set, batch_size=batch_size_train, shuffle=True, num_workers=num_workers)
-    
-    print('Number of validation images: {}'.format(len(test_loader.dataset)))
-    '''
-    # Download MNIST dataset to 'files' directory and normalize it
-    train_loader = torch.utils.data.DataLoader(
-        torchvision.datasets.MNIST(HERE + '/files/', train=True, download=True, transform=torchvision.transforms.Compose([
-            torchvision.transforms.ToTensor(),
-            torchvision.transforms.Normalize((0.1307,), (0.3081,))])),batch_size=batch_size_train, shuffle=True)
+    print('Number of validation images: {}'.format(len(val_loader.dataset)))
 
-    test_loader = torch.utils.data.DataLoader(
-        torchvision.datasets.MNIST(HERE + '/files/', train=False, download=True,transform=torchvision.transforms.Compose([
-            torchvision.transforms.ToTensor(),
-            torchvision.transforms.Normalize((0.1307,), (0.3081,))])),
-        batch_size=batch_size_test, shuffle=True)
-    '''
-    # Create an Optuna study to maximize test accuracy
+    if limit_obs:  # Limit number of observations
+        number_of_train_examples =len(train_loader.dataset)/100  # Max train observations
+        number_of_valid_examples = len(val_loader.dataset)/100 # Max valid observations
+    else:
+        number_of_train_examples = len(train_loader.dataset) # Max train observations
+        number_of_valid_examples = len(val_loader.dataset) # Max valid observations
+
+    # Create an Optuna study to maximize valid accuracy
     study = optuna.create_study(direction="maximize")
     study.optimize(objective, n_trials=number_of_trials)
 
@@ -278,7 +297,7 @@ if __name__ == '__main__':
     df = df.loc[df['state'] == 'COMPLETE']        # Keep only results that did not prune
     df = df.drop('state', axis=1)                 # Exclude state column
     df = df.sort_values('value')                  # Sort based on accuracy
-    df.to_csv('optuna_results.csv', index=False)  # Save to csv file
+    #df.to_csv('optuna_results.csv', index=False)  # Save to csv file
 
     # Display results in a dataframe
     print("\nOverall Results (ordered by accuracy):\n {}".format(df))
