@@ -36,16 +36,21 @@ writer = SummaryWriter()
 
 PERCENT_VALID_EXAMPLES = 0.1
 PERCENT_TEST_EXAMPLES = 0.1
-LIMIT_TRAIN_BATCHES = 0.1
-LIMIT_VAL_BATCHES = 0.1
+ECK_TEST_PERC = 0.05
+LIMIT_TRAIN_BATCHES = 0.5
+LIMIT_VAL_BATCHES = 0.5
+LIMIT_TEST_BATCHES = 0.5
 CLASSES = 2
-EPOCHS = 2
+EPOCHS = 5
 LOGGER_PATH = '/pvol/logs/'
-LOG_NAME = 'test_less_params/'
+LOG_NAME = 'test_padded_unpadded_testing/'
 IMG_PATH = '/pvol/Ecklonia_Database/'
+N_TRIALS = 20
+
 
 class GeneralDataset(Dataset):
-    def __init__(self, img_size, test_list, test):
+    def __init__(self, img_size, test_list, test, inception):
+        self.inception = inception
         if test: # True test dataset is returned
             # Add unpadded and padded entries to data
             self.data = test_list[0]
@@ -61,7 +66,7 @@ class GeneralDataset(Dataset):
                     self.data.append([img_path, class_name])
             
             # Delete all entries that are used in test_list
-            del_counter = len(self.data)
+            #del_counter = len(self.data)
             #print('Loaded created dataset of {} entries. \nNow deleting {} duplicate entries.'.format(len(self.data), len(test_list[0])))
             for test_entry in (test_list[0]):
                 if test_entry in self.data:
@@ -80,17 +85,24 @@ class GeneralDataset(Dataset):
         #train_transforms = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
         #!InceptionV3
         img = Image.fromarray(img)
-        train_transforms = transforms.Compose([
-        transforms.Resize((299, 299)),
-        transforms.ToTensor(), # ToTensor : [0, 255] -> [0, 1]
-        transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                            std=[0.229, 0.224, 0.225])
-        ])
+        if self.inception:
+            train_transforms = transforms.Compose([
+            transforms.Resize((299, 299)),
+            transforms.ToTensor(), # ToTensor : [0, 255] -> [0, 1]
+            transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                std=[0.229, 0.224, 0.225])
+            ])
+        else:
+            train_transforms = transforms.Compose([
+            transforms.ToTensor(), # ToTensor : [0, 255] -> [0, 1]
+            transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                std=[0.229, 0.224, 0.225])
+            ])
         img_tensor = train_transforms(img)
         #print(type(img_tensor))
         class_id = torch.tensor(class_id)
         return img_tensor, class_id
-
+'''
 class UniformDataset(Dataset):
     def __init__(self, img_size):
         self.imgs_path = IMG_PATH + str(img_size)+ '_images/'
@@ -127,7 +139,7 @@ class MixedDataset(Dataset):
         # Get unpadded images
         #####################
         file_list = [self.imgs_path + 'Others', self.imgs_path + 'Ecklonia']
-        if PERCENT_TEST_EXAMPLES*0.04*2*100 < 1:eck_perc = 1
+        if PERCENT_TEST_EXAMPLES*ECK_TEST_PERC*2*100 < 1:eck_perc = 1
         else: eck_perc = PERCENT_TEST_EXAMPLES*0.04*2*100
         unpad_perc = [PERCENT_TEST_EXAMPLES*100, eck_perc]
         for class_path in file_list:
@@ -182,7 +194,7 @@ class MixedDataset(Dataset):
         #img_tensor = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])(img_tensor)
         class_id = torch.tensor(class_id)
         return img_tensor, class_id
-
+'''
 
 class KelpClassifier(pl.LightningModule):
     def __init__(self, backbone_name, no_filters, learning_rate, trainer, trial, img_size): #dropout
@@ -397,8 +409,10 @@ def get_test_dataset(img_size, PERCENT_TEST_EXAMPLES):
     both_data = [unpad_data, pad_data]
     perc_id = 0
     counter = [[0,0],[0,0]]
-    if int(PERCENT_TEST_EXAMPLES * 0.05 * 100) ==0: perc[1] = 1
-    else: perc[1] = int(PERCENT_TEST_EXAMPLES * 0.05 * 100)
+    if int(PERCENT_TEST_EXAMPLES * ECK_TEST_PERC * 100) ==0: perc[1] = 1
+    else: perc[1] = int(PERCENT_TEST_EXAMPLES * ECK_TEST_PERC * 100)
+    #! for this test
+    #perc[1] = PERCENT_TEST_EXAMPLES * 100
     for idx in range(2):
         # First loop iterates over unpad files, second over padded files
         for class_path in both_file_list[idx]:
@@ -414,13 +428,12 @@ def get_test_dataset(img_size, PERCENT_TEST_EXAMPLES):
                 if random.randint(0,99) < perc[perc_id]:
                     both_data[idx].append([img_path, class_name])
                     counter[idx][class_id] += 1
-    #print('The Test-Dataset comprises of: \nUniform Ecklonia {}\nUniform Others {} \nPadded Ecklonia {}\nPadded Others {}'.format(counter[0][1], counter[0][0], counter[1][1], counter[1][0]))
+    print('The Test-Dataset comprises of: \nUniform Ecklonia {}\nUniform Others {} \nPadded Ecklonia {}\nPadded Others {}'.format(counter[0][1], counter[0][0], counter[1][1], counter[1][0]))
     return both_data
     
 def objective(trial: optuna.trial.Trial) -> float:
-    #img_size = 288
+
     backbone_name, no_filters = ['inception_v3', 0]
-    # We optimize the number of layers, hidden units in each layer and dropouts.
     
     ###############
     # Optuna Params
@@ -431,24 +444,28 @@ def objective(trial: optuna.trial.Trial) -> float:
         "learning_rate_init", 1e-7, 1e-5, log=True
     ) #min needs to be 1e-6
     img_size = trial.suggest_categorical("img_size", [  
-                    "256", 
-                    "288",
-                    '304', 
-                    "320", 
-                    '400', 
-                    '448',
-                    '480', 
-                    '512', 
-                    '544',
-                    '576',
-                    '608' 
+                    #"256", 
+                    #"288",
+                    '299',
+                    #'304', 
+                    #"320", 
+                    #'400', 
+                    #'448',
+                    #'480', 
+                    #'512', 
+                    #'544',
+                    #'576',
+                    #'608' 
                     ])
     ##############
     # Data Loading
     ##############
+    inception = False
+    if backbone_name == 'inception_v3': inception = True
+
     test_list = get_test_dataset(img_size, PERCENT_TEST_EXAMPLES)
-    test_set = GeneralDataset(img_size, test_list, test = True)
-    train_val_set = GeneralDataset(img_size, test_list, test = False)
+    test_set = GeneralDataset(img_size, test_list, test = True, inception=inception)
+    train_val_set = GeneralDataset(img_size, test_list, test = False, inception = inception)
     
     training_set, validation_set = torch.utils.data.random_split(train_val_set,[0.90, 0.10], generator=torch.Generator().manual_seed(123))
 
@@ -457,7 +474,7 @@ def objective(trial: optuna.trial.Trial) -> float:
     
     val_loader = torch.utils.data.DataLoader(validation_set, BATCHSIZE, shuffle=False, num_workers=os.cpu_count())
 
-    test_loader = torch.utils.data.DataLoader(test_set, batch_size=1, shuffle=False, num_workers=os.cpu_count())
+    test_loader = torch.utils.data.DataLoader(test_set, batch_size=BATCHSIZE, shuffle=False, num_workers=os.cpu_count())
     
 
     acc_val = 'cpu'
@@ -471,6 +488,7 @@ def objective(trial: optuna.trial.Trial) -> float:
         callbacks=[EarlyStopping(monitor="f1_score", mode="max")],
         limit_train_batches=LIMIT_TRAIN_BATCHES,
         limit_val_batches=LIMIT_VAL_BATCHES,
+        limit_test_batches=LIMIT_TEST_BATCHES,
         precision=16,
         log_every_n_steps=50
     )
@@ -499,7 +517,7 @@ def objective(trial: optuna.trial.Trial) -> float:
 if __name__ == '__main__':
 
     study = optuna.create_study(direction="maximize", pruner=optuna.pruners.MedianPruner())
-    study.optimize(objective, n_trials=None, timeout=None)
+    study.optimize(objective, n_trials=N_TRIALS, timeout=None)
 
     print("Number of finished trials: {}".format(len(study.trials)))
 
