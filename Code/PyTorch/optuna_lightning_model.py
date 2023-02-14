@@ -31,22 +31,10 @@ import warnings
 import numpy as np
 from PIL import Image
 import shutil
+import argparse
+
 
 writer = SummaryWriter()
-
-PERCENT_VALID_EXAMPLES = 0.1
-PERCENT_TEST_EXAMPLES = 0.1
-ECK_TEST_PERC = 0.05
-LIMIT_TRAIN_BATCHES = 0.5
-LIMIT_VAL_BATCHES = 0.5
-LIMIT_TEST_BATCHES = 0.5
-CLASSES = 2
-EPOCHS = 5
-LOGGER_PATH = '/pvol/logs/'
-LOG_NAME = 'test_padded_unpadded_testing/'
-IMG_PATH = '/pvol/Ecklonia_Database/'
-N_TRIALS = 20
-
 
 class GeneralDataset(Dataset):
     def __init__(self, img_size, test_list, test, inception):
@@ -231,7 +219,7 @@ class KelpClassifier(pl.LightningModule):
         self.training_losses = [[],[],[],[],[]]
         self.valid_losses = [[],[],[],[],[]]
         self.test_losses = [[],[],[],[],[]]
-        self.save_hyperparameters()
+        self.save_hyperparameters(ignore=['trainer','trial'])
 
     def on_validation_end(self):
             epoch = self.current_epoch
@@ -254,7 +242,7 @@ class KelpClassifier(pl.LightningModule):
                 raise optuna.TrialPruned(message)
 
     def forward(self, x):
-        
+        x_mlp = x
         if self.backbone_name == 'inception_v3':
             self.model.eval()
             x = self.model(x)
@@ -263,72 +251,33 @@ class KelpClassifier(pl.LightningModule):
             with torch.no_grad():
                 representations = self.feature_extractor(x).flatten(1)
             x = self.classifier(representations)
+        
+        if MLP_OPT:
+            mlp_model = torch.jit.load(MLP_PATH, map_location='cuda')
+            mlp_model.eval()
+            x_mlp = transforms.CenterCrop(24)(x_mlp)
+            x_mlp = mlp_model(x_mlp)
+            return x, x_mlp
         return x
 
     def training_step(self, batch, batch_idx):
         x, y = batch
-        y_hat = self(x)
-        prob = F.softmax(y_hat, dim=1)
-        loss = F.cross_entropy(y_hat, y)
-        top_p, top_class = prob.topk(1, dim = 1)
-        top_class = torch.reshape(top_class, (-1,))
-        accuracy = self.accuracy(top_class, y)
-        
-        f1_metric = BinaryF1Score().to('cuda')
-        f1_score = f1_metric(top_class, y)
-        prec_metric = BinaryPrecision().to('cuda')
-        prec_score = prec_metric(top_class, y)
-        rec_metric = BinaryRecall().to('cuda')
-        rec_score = rec_metric(top_class, y)
-        metrics=[loss.item(), accuracy.item(), f1_score.item(), prec_score.item(), rec_score.item()]
+        metrics, loss, f1_score = analyze_pred(self,x, y)
         for i, metric in enumerate(metrics):
             self.training_losses[i].append(metric)
         return loss
     
     def validation_step(self, batch, batch_idx):
         x, y = batch
-        y_hat = self(x)
-        prob = F.softmax(y_hat, dim=1)
-        loss = F.cross_entropy(y_hat, y)
-        top_p, top_class = prob.topk(1, dim = 1)
-        top_class = torch.reshape(top_class, (-1,))
-        accuracy = self.accuracy(top_class, y)
-        batch_idx = image_to_tb(self, batch, batch_idx)
-        
-        f1_metric = BinaryF1Score().to('cuda')
-        f1_score = f1_metric(top_class, y)
-        prec_metric = BinaryPrecision().to('cuda')
-        prec_score = prec_metric(top_class, y)
-        rec_metric = BinaryRecall().to('cuda')
-        rec_score = rec_metric(top_class, y)
-        metrics=[loss.item(), accuracy.item(), f1_score.item(), prec_score.item(), rec_score.item()]
+        metrics, loss, f1_score = analyze_pred(self,x, y)
         for i, metric in enumerate(metrics):
             self.valid_losses[i].append(metric)
-        #log_to_graph(self, rec_score, 'recall', 'valid', self.global_step)
-        #log_to_graph(self, prec_score, 'precision', 'valid', self.global_step)
-        #log_to_graph(self, f1_score, 'f1_score', 'valid', self.global_step)
-        #log_to_graph(self, accuracy, 'accuracy', 'valid', self.global_step)
-        #log_to_graph(self, loss, 'loss', 'valid', self.global_step)
-        #!
         self.log('f1_score', f1_score)
         return f1_score
     
     def test_step(self, batch, batch_idx):
         x, y = batch
-        y_hat = self(x)
-        prob = F.softmax(y_hat, dim=1)
-        loss = F.cross_entropy(y_hat, y)
-        top_p, top_class = prob.topk(1, dim = 1)
-        top_class = torch.reshape(top_class, (-1,))
-        accuracy = self.accuracy(top_class, y)
-        
-        f1_metric = BinaryF1Score().to('cuda')
-        f1_score = f1_metric(top_class, y)
-        prec_metric = BinaryPrecision().to('cuda')
-        prec_score = prec_metric(top_class, y)
-        rec_metric = BinaryRecall().to('cuda')
-        rec_score = rec_metric(top_class, y)
-        metrics=[loss.item(), accuracy.item(), f1_score.item(), prec_score.item(), rec_score.item()]
+        metrics, loss, f1_score = analyze_pred(self,x, y)
         for i, metric in enumerate(metrics):
             self.test_losses[i].append(metric)
 
@@ -376,6 +325,50 @@ class KelpClassifier(pl.LightningModule):
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
     
+def analyze_pred(self,x,y):
+        if MLP_OPT:
+            y_hat, y_mlp = self(x)
+            prob = F.softmax(y_hat, dim=1)
+            prob_mlp = F.softmax(y_mlp, dim=1)
+            prob = prob*(1-MLP_PERC) + prob_mlp*MLP_PERC
+        else:
+            y_hat = self(x)
+            prob = F.softmax(y_hat, dim=1)
+        loss = F.cross_entropy(y_hat, y)
+        top_p, top_class = prob.topk(1, dim = 1)
+        top_class = torch.reshape(top_class, (-1,))
+        accuracy = self.accuracy(top_class, y)
+        
+        f1_metric = BinaryF1Score().to('cuda')
+        f1_score = f1_metric(top_class, y)
+        prec_metric = BinaryPrecision().to('cuda')
+        prec_score = prec_metric(top_class, y)
+        rec_metric = BinaryRecall().to('cuda')
+        rec_score = rec_metric(top_class, y)
+        metrics=[loss.item(), accuracy.item(), f1_score.item(), prec_score.item(), rec_score.item()]
+        return metrics, loss, f1_score
+
+def get_args():
+    parser = argparse.ArgumentParser(description='Enter Parameters to define model training.')
+    parser.add_argument('--percent_valid_examples', metavar='pve', type=float, help='The percentage of valid examples taking out of dataset', default=0.1)
+    parser.add_argument('--percent_test_examples', metavar='pte', type=float, help='The percentage of test examples taking out of dataset', default=0.1)
+    parser.add_argument('--eck_test_perc', metavar='eck_tp', type=float, help='The percentage of ecklonia examples in the test set', default=0.05)
+    parser.add_argument('--limit_train_batches', metavar='ltrb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=1.0)
+    parser.add_argument('--limit_val_batches', metavar='lvb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=1.0)
+    parser.add_argument('--limit_test_batches', metavar='lteb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=1.0)
+    parser.add_argument('--epochs', metavar='epochs', type=int, help='The number of epcohs the algorithm trains', default=30)
+    parser.add_argument('--log_path', metavar='log_path', type=str, help='The path where the logger files are saved', default='/pvol/logs/')
+    parser.add_argument('--log_name', metavar='log_name', type=str, help='Name of the experiment.', default='unnamed')
+    parser.add_argument('--img_path', metavar='img_path', type=str, help='Path to the database of images', default='/pvol/Ecklonia_Database/')
+    parser.add_argument('--n_trials', metavar='n_trials', type=int, help='Number of trials that Optuna runs for', default=50)
+    parser.add_argument('--mlp_opt',  help='Defines whether the MLP is activated or not', action='store_true')
+    parser.add_argument('--mlp_perc', metavar='mlp_perc', type=float, help='Defines the weight that is given to the MLP prediction', default=0.5)
+    parser.add_argument('--mlp_path', metavar='mlp_path', type=str, help='Path to the MLP model', default='/home/ubuntu/IMAS/Code/PyTorch/models/85_acc_10_02_2023.pth')
+    parser.add_argument('--backbone', metavar='backbone', type=str, help='Name of the model which should be used for transfer learning', default='inception_v3')
+
+    args =parser.parse_args()
+    no_filters = 0
+    return args.percent_valid_examples,args.percent_test_examples, args.eck_test_perc,args.limit_train_batches,args.limit_val_batches,args.limit_test_batches,args.epochs,args.log_path,args.log_name,args.img_path, args.n_trials,args.mlp_opt, args.mlp_perc, args.mlp_path,args.backbone, no_filters
 
 def log_to_graph(self, value, var, name ,global_step):
     self.logger.experiment.add_scalars(var, {name: value},global_step)
@@ -433,15 +426,15 @@ def get_test_dataset(img_size, PERCENT_TEST_EXAMPLES):
     
 def objective(trial: optuna.trial.Trial) -> float:
 
-    backbone_name, no_filters = ['inception_v3', 0]
     
+
     ###############
     # Optuna Params
     ###############
     #dropout = trial.suggest_float("dropout", 0.2, 0.5)
     BATCHSIZE = 64#trial.suggest_int("batchsize", 8, 128)
     LEARNING_RATE = trial.suggest_float(
-        "learning_rate_init", 1e-7, 1e-5, log=True
+        "learning_rate_init", 1e-7, 1e-4, log=True
     ) #min needs to be 1e-6
     img_size = trial.suggest_categorical("img_size", [  
                     #"256", 
@@ -461,12 +454,15 @@ def objective(trial: optuna.trial.Trial) -> float:
     # Data Loading
     ##############
     inception = False
-    if backbone_name == 'inception_v3': inception = True
+    if backbone_name == 'inception_v3': 
+        inception = True
+        TEST_BATCHSIZE = BATCHSIZE
+    else: TEST_BATCHSIZE = 1 # Batchsize scaled down to one because of diff image sizes 
 
     test_list = get_test_dataset(img_size, PERCENT_TEST_EXAMPLES)
     test_set = GeneralDataset(img_size, test_list, test = True, inception=inception)
     train_val_set = GeneralDataset(img_size, test_list, test = False, inception = inception)
-    
+    print('Number of samples overall: {}'.format(len(train_val_set) + len(test_set)))
     training_set, validation_set = torch.utils.data.random_split(train_val_set,[0.90, 0.10], generator=torch.Generator().manual_seed(123))
 
     # Create data loaders for our datasets; shuffle for training and for validation
@@ -474,7 +470,7 @@ def objective(trial: optuna.trial.Trial) -> float:
     
     val_loader = torch.utils.data.DataLoader(validation_set, BATCHSIZE, shuffle=False, num_workers=os.cpu_count())
 
-    test_loader = torch.utils.data.DataLoader(test_set, batch_size=BATCHSIZE, shuffle=False, num_workers=os.cpu_count())
+    test_loader = torch.utils.data.DataLoader(test_set, batch_size=TEST_BATCHSIZE, shuffle=False, num_workers=os.cpu_count())
     
 
     acc_val = 'cpu'
@@ -515,7 +511,8 @@ def objective(trial: optuna.trial.Trial) -> float:
     return trainer.callback_metrics["f1_score"].item()
 
 if __name__ == '__main__':
-
+    PERCENT_VALID_EXAMPLES, PERCENT_TEST_EXAMPLES, ECK_TEST_PERC, LIMIT_TRAIN_BATCHES, LIMIT_VAL_BATCHES, LIMIT_TEST_BATCHES, EPOCHS, LOGGER_PATH, LOG_NAME, IMG_PATH, N_TRIALS, MLP_OPT, MLP_PERC, MLP_PATH, backbone_name, no_filters = get_args()
+    if MLP_OPT: print('MLP is activated')
     study = optuna.create_study(direction="maximize", pruner=optuna.pruners.MedianPruner())
     study.optimize(objective, n_trials=N_TRIALS, timeout=None)
 
