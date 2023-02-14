@@ -10,22 +10,23 @@ from os import listdir
 from os.path import isfile, join
 import io
 import os
-import access_sq_images as sq
+#import access_sq_images as sq
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 annotation_path = '/home/ubuntu/IMAS/Code/PyTorch/Annotation_Sets/1195753_REVIEWED_ANNOTATION_LIST.csv'
 bounding_box = [24, 24]
-save_path = '/pvol/random_validation/'+str(bounding_box[0])+'_images'
+save_path = '/pvol/Ecklonia_Database/24_images'
+MODEL_PATH = '/home/ubuntu/IMAS/Code/PyTorch/models/'
 
 # Get list of models in same file tree
-model_list = [f for f in listdir(HERE + '/models') if isfile(join(HERE + '/models', f))]
+model_list = [f for f in listdir(MODEL_PATH) if isfile(join(MODEL_PATH, f))]
 # Delete all models with wrong ending
 model_list = [val for val in model_list if val.endswith(".pth")]
-model_list = [HERE + '/models/' +s for s in model_list]
+model_list = [MODEL_PATH +s for s in model_list]
 
 
 # Get models from /pvol/
-for root, dirs, files in os.walk('/pvol/models/', topdown=False):
+for root, dirs, files in os.walk(MODEL_PATH, topdown=False):
     for name in files:
         if name.endswith('.pt'):
             model_list.append(root + name)
