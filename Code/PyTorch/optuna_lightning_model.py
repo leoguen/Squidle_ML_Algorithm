@@ -35,6 +35,7 @@ import argparse
 
 
 writer = SummaryWriter()
+MLP_PERC = 0.5
 
 class GeneralDataset(Dataset):
     def __init__(self, img_size, test_list, test, inception):
@@ -360,7 +361,7 @@ def get_args():
     parser.add_argument('--log_path', metavar='log_path', type=str, help='The path where the logger files are saved', default='/pvol/logs/')
     parser.add_argument('--log_name', metavar='log_name', type=str, help='Name of the experiment.', default='unnamed')
     parser.add_argument('--img_path', metavar='img_path', type=str, help='Path to the database of images', default='/pvol/Ecklonia_Database/')
-    parser.add_argument('--n_trials', metavar='n_trials', type=int, help='Number of trials that Optuna runs for', default=50)
+    parser.add_argument('--n_trials', metavar='n_trials', type=int, help='Number of trials that Optuna runs for', default=None)
     parser.add_argument('--mlp_opt',  help='Defines whether the MLP is activated or not', action='store_true')
     parser.add_argument('--mlp_perc', metavar='mlp_perc', type=float, help='Defines the weight that is given to the MLP prediction', default=0.5)
     parser.add_argument('--mlp_path', metavar='mlp_path', type=str, help='Path to the MLP model', default='/home/ubuntu/IMAS/Code/PyTorch/models/85_acc_10_02_2023.pth')
@@ -436,6 +437,11 @@ def objective(trial: optuna.trial.Trial) -> float:
     LEARNING_RATE = trial.suggest_float(
         "learning_rate_init", 1e-7, 1e-4, log=True
     ) #min needs to be 1e-6
+    global MLP_PERC 
+    MLP_PERC = trial.suggest_float(
+        "mlp_perc", 0, 1
+    ) # needs to be between 0 and 1
+    
     img_size = trial.suggest_categorical("img_size", [  
                     #"256", 
                     #"288",
@@ -512,6 +518,7 @@ def objective(trial: optuna.trial.Trial) -> float:
 
 if __name__ == '__main__':
     PERCENT_VALID_EXAMPLES, PERCENT_TEST_EXAMPLES, ECK_TEST_PERC, LIMIT_TRAIN_BATCHES, LIMIT_VAL_BATCHES, LIMIT_TEST_BATCHES, EPOCHS, LOGGER_PATH, LOG_NAME, IMG_PATH, N_TRIALS, MLP_OPT, MLP_PERC, MLP_PATH, backbone_name, no_filters = get_args()
+    
     if MLP_OPT: print('MLP is activated')
     study = optuna.create_study(direction="maximize", pruner=optuna.pruners.MedianPruner())
     study.optimize(objective, n_trials=N_TRIALS, timeout=None)
