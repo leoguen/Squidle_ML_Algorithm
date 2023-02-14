@@ -14,6 +14,7 @@ from torchvision import transforms
 
 IMG_PATH = '/pvol/Ecklonia_Database/'
 IMG_SIZE = 24
+LIMIT = False
 
 class GeneralDataset(Dataset):
     def __init__(self, img_size, test_list, test, inception):
@@ -224,18 +225,12 @@ if __name__ == '__main__':
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # --- Parameters ----------------------------------------------------------
-    n_epochs = 10          # Number of training epochs
+    n_epochs = 30          # Number of training epochs
     batch_size = 64  # Batch size for training data
     batch_size_valid = 64 # Batch size for validing data
-    number_of_trials = 100 # Number of Optuna trials
-    limit_obs = True       # Limit number of observations for faster computation
+    number_of_trials = 10000 # Number of Optuna trials
     num_workers=os.cpu_count()        # Define number of CPUs working
-    split = [0.8, 0.2]     # Dataset split Training/Validation
 
-    # *** Note: For more accurate results, do not limit the observations.
-    #           If not limited, however, it might take a very long time to run.
-    #           Another option is to limit the number of epochs. ***
-    
 
     # Make runs repeatable
     random_seed = 1
@@ -246,8 +241,10 @@ if __name__ == '__main__':
     HERE = os.path.dirname(os.path.abspath(__file__))
     test_list = [0]
     train_val_set = GeneralDataset(img_size = IMG_SIZE, test_list = test_list, test = False, inception = False)
-    
-    training_set, validation_set, throw_away = torch.utils.data.random_split(train_val_set,[0.090, 0.010, 0.9], generator=torch.Generator().manual_seed(123))
+    if LIMIT:
+        training_set, validation_set, throw_away = torch.utils.data.random_split(train_val_set,[0.090, 0.010, 0.9], generator=torch.Generator().manual_seed(123))
+    else:
+        training_set, validation_set = torch.utils.data.random_split(train_val_set,[0.90, 0.10], generator=torch.Generator().manual_seed(123))
 
     
     # Create data loaders for our datasets; shuffle for training and for validation
@@ -259,13 +256,6 @@ if __name__ == '__main__':
     print('Number of training images: {}'.format(len(train_loader.dataset)))
     
     print('Number of validation images: {}'.format(len(val_loader.dataset)))
-
-    if limit_obs:  # Limit number of observations
-        number_of_train_examples =len(train_loader.dataset)/100  # Max train observations
-        number_of_valid_examples = len(val_loader.dataset)/100 # Max valid observations
-    else:
-        number_of_train_examples = len(train_loader.dataset) # Max train observations
-        number_of_valid_examples = len(val_loader.dataset) # Max valid observations
 
     # Create an Optuna study to maximize valid accuracy
     study = optuna.create_study(direction="maximize")
