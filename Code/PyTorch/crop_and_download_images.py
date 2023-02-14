@@ -5,6 +5,7 @@ import pandas as pd
 import urllib.request
 import cv2
 import numpy as np
+import re
 
 class crop_download_images():
     
@@ -43,9 +44,10 @@ class crop_download_images():
                 df = pd.DataFrame(saving_prob_list)
                 df.to_csv(save_path + '/' + str(bounding_box[0])+'_images/'+ str(bounding_box[0]) +'_Saving_Problem.csv', index=False) 
         
-            df = pd.DataFrame(empty_prob_list)
-            df.to_csv(save_path + '/' + str(bounding_box[0])+'_images/'+ str(bounding_box[0]) +'_Empty_Problem.csv', index=False) 
-            df.to_csv(save_path + '/' + str(bounding_box[0])+'_images/'+ str(bounding_box[0]) +'_Crop_Problem.csv', index=False) 
+            empty_prob_list_df = pd.DataFrame(empty_prob_list)
+            empty_prob_list_df.to_csv(save_path + '/' + str(bounding_box[0])+'_images/'+ str(bounding_box[0]) +'_Empty_Problem.csv', index=False) 
+            crop_prob_list = pd.DataFrame(crop_prob_list)
+            crop_prob_list.to_csv(save_path + '/' + str(bounding_box[0])+'_images/'+ str(bounding_box[0]) +'_Crop_Problem.csv', index=False) 
         print('Problematic files have been saved for {}'.format(bounding_box))
 
     def get_crop_points(self, x, y, original_image, bounding_box):
@@ -100,7 +102,7 @@ class crop_download_images():
             print('General problem with cropping ID: {}'.format(index))
             crop_prob_list.append([(index+2), csv_file_df.point_media_path_best[index]])
         
-        file_name = str(csv_file_df.label_name[index].replace('[.]', '_').replace('(', '_').replace(')', '_').replace(' ', '_')) +"_"+ str(csv_file_df.point_id[index]) +".jpg"
+        file_name = str(re.sub("\W", "_", csv_file_df.label_name[index])) +"_"+ str(csv_file_df.point_id[index]) +".jpg"
 
         file_path_and_name = save_path +'/'+str(bounding_box[0])+'_images/' + label + '/' + file_name
         
