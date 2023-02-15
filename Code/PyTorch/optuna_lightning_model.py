@@ -505,7 +505,10 @@ def objective(trial: optuna.trial.Trial) -> float:
                             #pl_module = LightningModule, 
                             img_size=img_size)
     #dropout=dropout,
-    hyperparameters = dict(learning_rate=LEARNING_RATE, image_size = img_size)
+    if MLP_OPT:
+        hyperparameters = dict(learning_rate=LEARNING_RATE, image_size = img_size, mlp_percentage=MLP_PERC, backbone = backbone_name)
+    else: 
+        hyperparameters = dict(learning_rate=LEARNING_RATE, image_size = img_size, backbone = backbone_name)
     trainer.logger.log_hyperparams(hyperparameters)
     trainer.fit(model, train_loader,val_loader )
     # Handle pruning based on the intermediate value.
@@ -524,7 +527,6 @@ if __name__ == '__main__':
     study.optimize(objective, n_trials=N_TRIALS, timeout=None)
 
     print("Number of finished trials: {}".format(len(study.trials)))
-
     print("Best trial:")
     trial = study.best_trial
 
