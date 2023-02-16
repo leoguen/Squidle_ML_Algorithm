@@ -50,18 +50,18 @@ class create_csv_list():
     '''
     def get_annotation_set(self, API_TOKEN, URL,  id_list, HERE):
         # Create .csv file to append to 
-        anno_name = '/Annotation_Sets/Full_Annotation_List.csv'
+        anno_name = '/Annotation_Sets/Full_Annotation_List_Deployment_Key.csv'
         prob_name = '/Annotation_Sets/Problem_Files_Full_Annotation_List.txt'
         
-        #with open(HERE + anno_name, 'w') as creating_new_csv_file: 
-        #    pass
+        with open(HERE + anno_name, 'w') as creating_new_csv_file: 
+            pass
         with open(HERE + prob_name, 'w') as creating_new_csv_file: 
             pass
         
         counter = 0
         # Iterate through all annotation ids
         for id in id_list: 
-            annotation_url = '/' + str(id) + '/export?template=dataframe.csv&disposition=attachment&include_columns=["label.id","label.uuid","label.name","tag_names","point.id","point.x","point.y","point.t","point.data","point.media.id","point.media.path_best","point.pose.timestamp","point.pose.lat","point.pose.lon","point.pose.alt","point.pose.dep","label.translated.id","label.translated.uuid","label.translated.name","label.translated.lineage_names","label.translated.translation_info"]&f={"operations":[{"module":"pandas","method":"json_normalize"},{"method":"sort_index","kwargs":{"axis":1}}]}&q={"filters":[{"name":"point","op":"has","val":{"name":"has_xy","op":"eq","val":true}},{"name":"label_id","op":"is_not_null"}]}&translate={"vocab_registry_keys":["worms","caab","catami"],"target_label_scheme_id":null}'
+            annotation_url = '/' + str(id) + '/export?template=dataframe.csv&disposition=attachment&include_columns=["label.id","label.uuid","label.name","tag_names","point.id","point.media.deployment.campaign.key","point.x","point.y","point.t","point.data","point.media.id","point.media.path_best","point.pose.timestamp","point.pose.lat","point.pose.lon","point.pose.alt","point.pose.dep","label.translated.id","label.translated.uuid","label.translated.name","label.translated.lineage_names","label.translated.translation_info"]&f={"operations":[{"module":"pandas","method":"json_normalize"},{"method":"sort_index","kwargs":{"axis":1}}]}&q={"filters":[{"name":"point","op":"has","val":{"name":"has_xy","op":"eq","val":true}},{"name":"label_id","op":"is_not_null"}]}&translate={"vocab_registry_keys":["worms","caab","catami"],"target_label_scheme_id":null}'
             
             with requests.Session() as s:
                 head = {'auth-token': API_TOKEN}
@@ -75,7 +75,7 @@ class create_csv_list():
                     #print(df.head(0))
                 
                 try:
-                    df = df[['label.id', 'label.name', 'label.uuid', 'point.id', 'point.media.path_best', 'point.x', 'point.y', 'tag_names']]
+                    df = df[['label.id', 'label.name', 'label.uuid', 'point.id','point.media.deployment.campaign.key' , 'point.media.path_best', 'point.x', 'point.y', 'tag_names']]
                 except:
                     print("Problem with annotationset {}, will be skipped".format(id))
                     print(df.head(0))
