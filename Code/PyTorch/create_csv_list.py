@@ -51,10 +51,11 @@ class create_csv_list():
     def get_annotation_set(self, API_TOKEN, URL,  id_list, HERE):
         # Create .csv file to append to 
         anno_name = '/Annotation_Sets/Full_Annotation_List_Deployment_Key.csv'
-        prob_name = '/Annotation_Sets/Problem_Files_Full_Annotation_List.txt'
+        prob_name = '/Annotation_Sets/Problem_Files_Deployment_Annotation_List.txt'
         
         with open(HERE + anno_name, 'w') as creating_new_csv_file: 
             pass
+
         with open(HERE + prob_name, 'w') as creating_new_csv_file: 
             pass
         
@@ -93,7 +94,7 @@ class create_csv_list():
                     header = True
                 
                 #df.drop("Unnamed: 0", axis=1, inplace=True)
-                #df.to_csv(path_or_buf=HERE+anno_name, mode='a', index=False, header=header)
+                df.to_csv(path_or_buf=HERE+anno_name, mode='a', index=False, header=header)
             counter += 1
             print('CSV file number {}/{} saved for id: {}'.format(counter,len(id_list) , id))
         return anno_name

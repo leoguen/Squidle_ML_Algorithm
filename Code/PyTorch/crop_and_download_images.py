@@ -110,48 +110,55 @@ class crop_download_images():
 
 if __name__ == "__main__":
     download_list = [#[16,16],
-    [32,32],
-    [24,24],
-    [64,64],
-    [96,96],
-    [128,128],
-    [160,160],
-    [192,192],
-    [224,224],
+    #[32,32],
+    #[24,24],
+    #[64,64],
+    #[96,96],
+    #[128,128],
+    #[160,160],
+    #[192,192],
+    #[224,224],
     #[230,230],
     #[240,240],
-    [256,256],
+    #[256,256],
     #[272,272], 
 
-    [288,288],
+    #[288,288],
     [299,299],
-    [304,304],
+    #[304,304],
     #[320,320],
-    [336,336],
-    [368,368],
-    [400,400],
-    [432,423],
-    [464,464],
-    [496,496],
+    #[336,336],
+    #[368,368],
+    #[400,400],
+    #[432,423],
+    #[464,464],
+    #[496,496],
     #[448,448],
     #[480,480], 
-    [528,528],
-    [560,560], 
-    [592,592],
-    [624,624] 
+    #[528,528],
+    #[560,560], 
+    #[592,592],
+    #[624,624] 
     #[544,544], 
     #[576,576], 
     #[608,608],
     
     ]
     #download_list = [[336,336]]
+    path_list = [
+        #['NSW_Broughton','/Annotation_Sets/Test_sets/annotations-u45-leo_kelp_AI_test_broughton_is_NSW-leo_kelp_AI_test_broughton_is_25pts-8152-7652a9b48f0e3186fe5d-dataframe.csv'], 
+        #['VIC_Discoverybay','/Annotation_Sets/Test_sets/annotations-u45-leo_kelp_AI_test_discoverybay_VIC_phylospora-leo_kelp_AI_test_db_phylospora_25pts-8149-7652a9b48f0e3186fe5d-dataframe.csv'],
+        ['TAS_Lanterns','/Annotation_Sets/Test_sets/annotations-u45-leo_kelp_AI_test_lanterns_TAS-leo_kelp_AI_test_lanterns_25pts-8151-7652a9b48f0e3186fe5d-dataframe.csv'], 
+        ['VIC_Prom','/Annotation_Sets/Test_sets/annotations-u45-leo_kelp_AI_test_prom_VIC-leo_kelp_AI_test_prom_25pts-8150-7652a9b48f0e3186fe5d-dataframe.csv'], 
+        ['WA', '/Annotation_Sets/Test_sets/annotations-u45-leo_kelp_SWC_WA_AI_test-leo_kelp_AI_SWC_WA_test_25pts-8148-7652a9b48f0e3186fe5d-dataframe.csv']]
     for bounding_box in download_list:
-        print(bounding_box)
-        here = os.path.dirname(os.path.abspath(__file__))
-        save_path = '/pvol/Ecklonia_Database'
-        list_name = '/Annotation_Sets/109378_normalized_list.csv'
+        for name, path in path_list:    
+            print(bounding_box)
+            here = os.path.dirname(os.path.abspath(__file__))
+            save_path = '/pvol/Ecklonia_Testbase/' + name
+            list_name = path
 
-        data = crop_download_images()
+            data = crop_download_images()
 
-        data.create_directory_structure(save_path)
-        data.download_images(save_path, here, bounding_box, list_name)
+            data.create_directory_structure(save_path)
+            data.download_images(save_path, here, bounding_box, list_name)
