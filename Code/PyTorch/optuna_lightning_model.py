@@ -57,7 +57,7 @@ class GeneralDataset(Dataset):
                 self.class_map = {"Ecklonia" : 1, "Others": 0}
         else: 
             self.imgs_path = IMG_PATH + str(img_size)+ '_images/'
-            file_list = [self.imgs_path + 'Others', self.imgs_path + 'Ecklonia']
+            file_list = [self.imgs_path + 'Others', self.imgs_path + 'Padding/Others', self.imgs_path + 'Ecklonia', self.imgs_path + 'Padding/Ecklonia']
             self.data = []
             for class_path in file_list:
                 class_name = class_path.split("/")[-1]
@@ -280,9 +280,8 @@ class KelpClassifier(pl.LightningModule):
             if not(real_test): #for normal testing
                 log_to_graph(self, metric_list[i], var, name, self.global_step)
             else: 
-                if var == 'f1_score': # log differently if there are multiple testsets
-                    global path_label
-                    self.logger.experiment.add_scalars('test_f1_score', {name: metric_list[i]},path_label)
+                global path_label
+                self.logger.experiment.add_scalars('test_'+var, {name: metric_list[i]},path_label)
         self.test = [[],[],[],[],[],[]]  # reset for next epoch
     
     def predict_step(self, batch, batch_idx):
@@ -517,7 +516,7 @@ def objective(trial: optuna.trial.Trial) -> float:
     
     
     train_val_set = GeneralDataset(img_size, test_list, test = False, inception = inception, test_img_path = test_img_path)
-    #print('Number of samples overall: {}'.format(len(train_val_set) + len(test_set)))
+    print('Number of samples overall: {}'.format(len(train_val_set) + len(test_set)))
     training_set, validation_set = torch.utils.data.random_split(train_val_set,[0.90, 0.10], generator=torch.Generator().manual_seed(123))
 
     # Create data loaders for our datasets; shuffle for training and for validation
