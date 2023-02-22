@@ -23,7 +23,7 @@ class GeneralDataset(Dataset):
             # Add unpadded and padded entries to data
             self.data = test_list['test','test']
             #self.data = self.data + test_list[1]
-            self.class_map = {"Ecklonia" : 0, "Others": 1}
+            self.class_map = {"Ecklonia" : 1, "Others": 0}
         else: 
             self.imgs_path = IMG_PATH + str(img_size)+ '_images/'
             file_list = [self.imgs_path + 'Others', self.imgs_path + 'Ecklonia']
@@ -41,7 +41,7 @@ class GeneralDataset(Dataset):
             #        self.data.remove(test_entry)
 
             #print('Deleted {} duplicate entries'.format(del_counter-len(self.data)))
-            self.class_map = {"Ecklonia" : 0, "Others": 1}
+            self.class_map = {"Ecklonia" : 1, "Others": 0}
         
     def __len__(self):
         return len(self.data)    
@@ -55,16 +55,27 @@ class GeneralDataset(Dataset):
         img = Image.fromarray(img)
         if self.inception:
             train_transforms = transforms.Compose([
-            transforms.Resize((299, 299)),
+            transforms.RandomVerticalFlip(p=0.5),
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.RandomAutocontrast(p=0.5),
+            transforms.RandomEqualize(p=0.4),
+            transforms.ColorJitter(brightness=0.5, hue=0.2),
             transforms.ToTensor(), # ToTensor : [0, 255] -> [0, 1]
             transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                std=[0.229, 0.224, 0.225])
+                                std=[0.229, 0.224, 0.225]),
+            
             ])
         else:
             train_transforms = transforms.Compose([
+            transforms.RandomVerticalFlip(p=0.5),
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.RandomAutocontrast(p=0.5),
+            transforms.RandomEqualize(p=0.4),
+            transforms.ColorJitter(brightness=0.5, hue=0.2),
             transforms.ToTensor(), # ToTensor : [0, 255] -> [0, 1]
             transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                std=[0.229, 0.224, 0.225])
+                                std=[0.229, 0.224, 0.225]),
+            
             ])
         img_tensor = train_transforms(img)
         #print(type(img_tensor))
@@ -72,7 +83,7 @@ class GeneralDataset(Dataset):
         return img_tensor, class_id
 
 class Net(nn.Module):
-    """CNN for the MNIST dataset of handwritten digits.
+    """CNN for the 24 pixel dataset of Ecklonia Radiata.
     Attributes:
         - convs (torch.nn.modules.container.ModuleList):   List with the convolutional layers
         - conv2_drop (torch.nn.modules.dropout.Dropout2d): Dropout for conv layer 2
@@ -162,6 +173,10 @@ def valid(network):
     Returns:
         - accuracy_valid (torch.Tensor): The valid accuracy
     """
+    TP=0
+    TN=0
+    FP=0
+    FN=0
     network.eval() # Set the module in evaluation mode (only affects certain modules)
     correct = 0
     valid_len = len(val_loader.dataset)
@@ -169,12 +184,21 @@ def valid(network):
         for batch_i, (data, target) in enumerate(val_loader):  # For each batch
             output = network(data.to(device)) # Forward propagation
             pred = output.data.max(1, keepdim=True)[1] # Find max value in each row, return indexes of max values
+            for i in range(len(pred)):    
+                if pred[i] == 1:
+                    if pred[i] == target.to(device).data.view_as(pred)[i]: TP +=1
+                    else: FP += 1
+                elif pred[i] == 0: 
+                    if pred[i] == target.to(device).data.view_as(pred)[i]: TN += 1
+                    else: FN += 1
+                else: print('Error with prediction')
             #! Target has the correct values and pred the predicted values. Could prob use for loop and get TP, TN, FP, FN
             correct += pred.eq(target.to(device).data.view_as(pred)).sum()  # Compute correct predictions
 
+    f1_score_valid = (2*TP)/(2*TP+FP+FN)
     accuracy_valid = correct / valid_len
 
-    return accuracy_valid
+    return  f1_score_valid, accuracy_valid
 
 def objective(trial):
     """Objective function to be optimized by Optuna.
@@ -198,17 +222,17 @@ def objective(trial):
     model = Net(trial, num_conv_layers, num_filters, num_neurons, drop_conv2,  drop_fc1).to(device)
 
     # Generate the optimizers
-    optimizer_name = trial.suggest_categorical("optimizer", ["Adam", "RMSprop", "SGD"])  # Optimizers
+    optimizer_name = trial.suggest_categorical("optimizer", ['Adam', 'Adagrad', 'Adadelta', 'Adamax', 'AdamW', 'ASGD', 'NAdam', 'RAdam', 'RMSprop', 'Rprop', 'SGD'])
     lr = trial.suggest_float("lr", 1e-8, 1e-4, log=True)                                 # Learning rates
     optimizer = getattr(optim, optimizer_name)(model.parameters(), lr=lr)
 
     # Training of the model
     for epoch in range(n_epochs):
         train(model, optimizer)  # Train the model
-        accuracy = valid(model)   # Evaluate the model
-        print(accuracy)
+        f1_score, accuracy = valid(model)   # Evaluate the model
+        print(f1_score, accuracy)
         # For pruning (stops trial early if not promising)
-        trial.report(accuracy, epoch)
+        trial.report(f1_score, epoch)
         # Handle pruning based on the intermediate value.
         if trial.should_prune():
             raise optuna.exceptions.TrialPruned()
@@ -216,7 +240,7 @@ def objective(trial):
         model_scripted = torch.jit.script(model) # Export to TorchScript
         model_scripted.save('/pvol/MLP_Trials/{}_trial.pth'.format(trial.number)) # Save
 
-    return accuracy
+    return f1_score
 
 
 if __name__ == '__main__':
@@ -225,10 +249,10 @@ if __name__ == '__main__':
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # --- Parameters ----------------------------------------------------------
-    n_epochs = 30          # Number of training epochs
+    n_epochs = 3          # Number of training epochs
     batch_size = 64  # Batch size for training data
     batch_size_valid = 64 # Batch size for validing data
-    number_of_trials = 10000 # Number of Optuna trials
+    number_of_trials = None # Number of Optuna trials
     num_workers=os.cpu_count()        # Define number of CPUs working
 
 
@@ -287,10 +311,10 @@ if __name__ == '__main__':
     df = df.loc[df['state'] == 'COMPLETE']        # Keep only results that did not prune
     df = df.drop('state', axis=1)                 # Exclude state column
     df = df.sort_values('value')                  # Sort based on accuracy
-    #df.to_csv('optuna_results.csv', index=False)  # Save to csv file
+    df.to_csv('optuna_results.csv', index=False)  # Save to csv file
 
     # Display results in a dataframe
-    print("\nOverall Results (ordered by accuracy):\n {}".format(df))
+    print("\nOverall Results (ordered by f1_score):\n {}".format(df))
 
     # Find the most important hyperparameters
     most_important_parameters = optuna.importance.get_param_importances(study, target=None)
