@@ -249,7 +249,7 @@ if __name__ == '__main__':
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # --- Parameters ----------------------------------------------------------
-    n_epochs = 3          # Number of training epochs
+    n_epochs = 30          # Number of training epochs
     batch_size = 64  # Batch size for training data
     batch_size_valid = 64 # Batch size for validing data
     number_of_trials = None # Number of Optuna trials

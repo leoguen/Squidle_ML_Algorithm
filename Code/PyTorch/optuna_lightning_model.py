@@ -476,8 +476,8 @@ def objective(trial: optuna.trial.Trial) -> float:
     ''' 
     LEARNING_RATE = 0.0000050000
     global optimizer_name
-    #optimizer_name = trial.suggest_categorical("optimizer", ['Adam', 'Adagrad', 'Adadelta', 'Adamax', 'AdamW', 'ASGD', 'NAdam', 'RAdam', 'RMSprop', 'Rprop', 'SGD'])
-    optimizer_name = 'Adam'
+    optimizer_name = trial.suggest_categorical("optimizer", ['Adam', 'Adagrad', 'Adadelta', 'Adamax', 'AdamW', 'ASGD', 'NAdam', 'RAdam', 'RMSprop', 'Rprop', 'SGD'])
+    #optimizer_name = 'Adam'
     global MLP_PERC, rvf_perc, rhf_perc, rauto_perc, requa_perc, rbright_perc, rhue_perc
     #MLP_PERC = trial.suggest_float("mlp_perc", 0, 1) 
     #rvf_perc = trial.suggest_float("rvf_perc", 0, 1)
@@ -516,7 +516,7 @@ def objective(trial: optuna.trial.Trial) -> float:
     
     
     train_val_set = GeneralDataset(img_size, test_list, test = False, inception = inception, test_img_path = test_img_path)
-    print('Number of samples overall: {}'.format(len(train_val_set) + len(test_set)))
+    
     training_set, validation_set = torch.utils.data.random_split(train_val_set,[0.90, 0.10], generator=torch.Generator().manual_seed(123))
 
     # Create data loaders for our datasets; shuffle for training and for validation
@@ -607,7 +607,9 @@ def objective(trial: optuna.trial.Trial) -> float:
         test_loader = torch.utils.data.DataLoader(test_set, batch_size=TEST_BATCHSIZE, shuffle=False, num_workers=os.cpu_count())
         display_testset(test_loader)
         trainer.test(ckpt_path='best', dataloaders=test_loader)
-
+    
+    print('Number of samples overall: {}'.format(len(train_val_set) + len(test_set)))
+    
     return f1_score_end
 
 if __name__ == '__main__':
