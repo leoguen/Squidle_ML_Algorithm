@@ -108,15 +108,16 @@ class GeneralDataset(Dataset):
         return img_tensor, class_id
 
 class KelpClassifier(pl.LightningModule):
-    def __init__(self, backbone_name, no_filters, learning_rate, trainer, trial, img_size): #dropout
+    def __init__(self, backbone_name, no_filters, trainer, trial, img_size,batch_size): #dropout, learning_rate
         super().__init__()
         # init a pretrained resnet
         self.img_size = img_size
         self.trainer = trainer
         self.pl_module = LightningModule
         self._trial = trial
+        self.batch_size = batch_size
         self.monitor = 'f1_score'
-        self.hparams.learning_rate = learning_rate
+        self.hparams.learning_rate = 1e-5
         self.accuracy = torchmetrics.Accuracy(task='binary')
         self.backbone_name = backbone_name
         backbone = getattr(models, backbone_name)(weights='DEFAULT')
@@ -144,6 +145,7 @@ class KelpClassifier(pl.LightningModule):
         self.training_losses = [[],[],[],[],[],[]]
         self.valid_losses = [[],[],[],[],[],[]]
         self.test_losses = [[],[],[],[],[],[]]
+        self.test_eck_p = []
         #self.save_hyperparameters(ignore=['trainer','trial'])
 
     def on_validation_end(self):
@@ -187,14 +189,14 @@ class KelpClassifier(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         x, y = batch
-        metrics, loss, f1_score = analyze_pred(self,x, y)
+        metrics, loss, f1_score, top_eck_p = analyze_pred(self,x, y)
         for i, metric in enumerate(metrics):
             self.training_losses[i].append(metric)
         return loss
     
     def validation_step(self, batch, batch_idx):
         x, y = batch
-        metrics, loss, f1_score = analyze_pred(self,x, y)
+        metrics, loss, f1_score, top_eck_p = analyze_pred(self,x, y)
         for i, metric in enumerate(metrics):
             self.valid_losses[i].append(metric)
         # only log when not sanity checking
@@ -204,9 +206,11 @@ class KelpClassifier(pl.LightningModule):
     
     def test_step(self, batch, batch_idx):
         x, y = batch
-        metrics, loss, f1_score = analyze_pred(self,x, y)
+        metrics, loss, f1_score,top_eck_p = analyze_pred(self,x, y)
         for i, metric in enumerate(metrics):
             self.test_losses[i].append(metric)
+        for single_prob in top_eck_p:
+            self.test_eck_p.append(single_prob)
         accuracy, precision, recall, f1_score = get_acc_prec_rec_f1(self, metric = self.test_losses)
         #self.log('f1_score', f1_score)
         #return f1_score
@@ -274,15 +278,25 @@ class KelpClassifier(pl.LightningModule):
         metric = ['loss', 'accuracy', 'precision', 'recall', 'f1_score']
         accuracy, precision, recall, f1_score = get_acc_prec_rec_f1(self, metric = self.test_losses)
         loss = np.mean(self.test_losses[0])
-
+        test_pred_hist = get_pred_histogram(self, self.test_eck_p)
         metric_list = [loss, accuracy, precision, recall, f1_score]
+        global path_label
         for i, var in enumerate(metric):
             if not(real_test): #for normal testing
                 log_to_graph(self, metric_list[i], var, name, self.global_step)
             else: 
-                global path_label
+                
                 self.logger.experiment.add_scalars('test_'+var, {name: metric_list[i]},path_label)
+        
+        # Add probability histogramm to log
+        if real_test: prob_name = name+'/'+str(path_label)
+        else: prob_name = name
+                
+        for j, value in enumerate(test_pred_hist):
+            step = 5.5 + j*0.5
+            log_to_graph(self, value, 'test_probability', prob_name, step)
         self.test = [[],[],[],[],[],[]]  # reset for next epoch
+        self.test_eck_p = [] # reset for next epoch
     
     def predict_step(self, batch, batch_idx):
         # This can be used for implementation
@@ -302,6 +316,22 @@ def set_parameter_requires_grad(model, feature_extracting):
     if feature_extracting:
         for param in model.parameters():
             param.requires_grad = False
+
+def get_pred_histogram(self, test_eck_p):
+    test_pred_hist = [0]*10
+    for entry in test_eck_p:
+        if (entry.item() >=0.5 and entry.item()<0.55): test_pred_hist[0] += 1
+        elif (entry.item() >=0.55 and entry.item()<0.6): test_pred_hist[1] += 1
+        elif (entry.item() >=0.6 and entry.item()<0.65): test_pred_hist[2] += 1
+        elif (entry.item() >=0.65 and entry.item()<0.7): test_pred_hist[3] += 1
+        elif (entry.item() >=0.7 and entry.item()<0.75): test_pred_hist[4] += 1
+        elif (entry.item() >=0.75 and entry.item()<0.8): test_pred_hist[5] += 1
+        elif (entry.item() >=0.8 and entry.item()<0.85): test_pred_hist[6] += 1
+        elif (entry.item() >=0.85 and entry.item()<0.9): test_pred_hist[7] += 1
+        elif (entry.item() >=0.9 and entry.item()<0.95): test_pred_hist[8] += 1
+        elif entry.item() >=0.95: test_pred_hist[9] += 1
+    return test_pred_hist
+
 
 def get_acc_prec_rec_f1(self, metric):
     TP = np.mean(metric[2]) 
@@ -332,6 +362,7 @@ def analyze_pred(self,x,y):
             prob = F.softmax(y_hat, dim=1)
         loss = F.cross_entropy(y_hat, y)
         top_p, top_class = prob.topk(1, dim = 1)
+        top_eck_p = top_p * top_class
         top_class = torch.reshape(top_class, (-1,))
         accuracy = self.accuracy(top_class, y)
         TP=0
@@ -354,7 +385,7 @@ def analyze_pred(self,x,y):
         #rec_score = rec_metric(top_class, y)
         #metrics=[loss.item(), accuracy.item(), f1_score.item(), prec_score.item(), rec_score.item()]
         metrics=[loss.item(), accuracy.item(), TP, TN, FP, FN]
-        return metrics, loss, f1_score
+        return metrics, loss, f1_score, top_eck_p
 
 def get_args():
     parser = argparse.ArgumentParser(description='Enter Parameters to define model training.')
@@ -385,7 +416,7 @@ def get_args():
     
     parser.add_argument('--mlp_perc', metavar='mlp_perc', type=float, help='Defines the weight that is given to the MLP prediction', default=0.25)
 
-    parser.add_argument('--mlp_path', metavar='mlp_path', type=str, help='Path to the MLP model', default='/home/ubuntu/IMAS/Code/PyTorch/models/85_acc_10_02_2023.pth')
+    parser.add_argument('--mlp_path', metavar='mlp_path', type=str, help='Path to the MLP model', default='/home/ubuntu/IMAS/Code/PyTorch/models/81_f1_score.pth')
 
     parser.add_argument('--backbone', metavar='backbone', type=str, help='Name of the model which should be used for transfer learning', default='inception_v3')
 
@@ -474,12 +505,12 @@ def objective(trial: optuna.trial.Trial) -> float:
         "learning_rate_init", 1e-8, 1e-1, log=True
     ) #min needs to be 1e-6
     ''' 
-    LEARNING_RATE = 0.0000050000
+    #LEARNING_RATE = 0.0000050000
     global optimizer_name
-    optimizer_name = trial.suggest_categorical("optimizer", ['Adam', 'Adagrad', 'Adadelta', 'Adamax', 'AdamW', 'ASGD', 'NAdam', 'RAdam', 'RMSprop', 'Rprop', 'SGD'])
-    #optimizer_name = 'Adam'
+    #optimizer_name = trial.suggest_categorical("optimizer", ['Adam', 'Adagrad', 'Adadelta', 'Adamax', 'AdamW', 'ASGD', 'NAdam', 'RAdam', 'RMSprop', 'Rprop', 'SGD'])
+    optimizer_name = 'AdamW'
     global MLP_PERC, rvf_perc, rhf_perc, rauto_perc, requa_perc, rbright_perc, rhue_perc
-    #MLP_PERC = trial.suggest_float("mlp_perc", 0, 1) 
+    MLP_PERC = trial.suggest_float("mlp_perc", 0, 1) 
     #rvf_perc = trial.suggest_float("rvf_perc", 0, 1)
     #rhf_perc = trial.suggest_float("rhf_perc", 0, 1)
     #rauto_perc = trial.suggest_float("rauto_perc", 0, 1)
@@ -539,19 +570,21 @@ def objective(trial: optuna.trial.Trial) -> float:
         limit_test_batches=LIMIT_TEST_BATCHES,
         precision=16,
         log_every_n_steps=50,
-        auto_scale_batch_size="binsearch",
+        #auto_scale_batch_size="binsearch",
+        auto_lr_find=True,
     )
-
+    
     model = KelpClassifier(backbone_name, 
                             no_filters, 
-                            LEARNING_RATE, 
-                            #BATCHSIZE, 
+                            #LEARNING_RATE, 
+                            batch_size = 64, 
                             trial = trial, 
                             #monitor ='f1_score', 
                             trainer= trainer,  
                             #pl_module = LightningModule, 
                             img_size=img_size)
     #dropout=dropout,
+    trainer.tune(model, train_loader,val_loader )
     trainer.fit(model, train_loader,val_loader )
     
     ##########
@@ -559,7 +592,7 @@ def objective(trial: optuna.trial.Trial) -> float:
     ##########
     hyperparameters = dict(
             optimizer_name = optimizer_name,
-            learning_rate=LEARNING_RATE, 
+            learning_rate=model.learning_rate, #LEARNING_RATE, 
             image_size = img_size, 
             backbone = backbone_name,
             #rvf_perc = rvf_perc, 
