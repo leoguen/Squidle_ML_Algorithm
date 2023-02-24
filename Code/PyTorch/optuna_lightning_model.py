@@ -226,26 +226,7 @@ class KelpClassifier(pl.LightningModule):
         for i, var in enumerate(metric):
             log_to_graph(self, metric_list[i], var, name, self.global_step)
         self.training_losses = [[],[],[],[],[],[]]  # reset for next epoch
-    '''
-    def on_train_epoch_end(self):
-        #value, var, name
-        name = 'train'
-        metric = ['loss', 'accuracy', 'f1_score', 'precision', 'recall']
-        for i, var in enumerate(metric):
-            metric_list = self.training_losses[i]
-            metric_mean = np.mean(metric_list)
-            log_to_graph(self, metric_mean, var, name, self.global_step)
-        self.training_losses = [[],[],[],[],[],[]]  # reset for next epoch
 
-    def on_validation_epoch_end(self):
-        name = 'valid'
-        metric = ['loss', 'accuracy', 'f1_score', 'precision', 'recall']
-        for i, var in enumerate(metric):
-            metric_list = self.valid_losses[i]
-            metric_mean = np.mean(metric_list)
-            log_to_graph(self, metric_mean, var, name, self.global_step)
-        self.valid_losses = [[],[],[],[],[],[]]  # reset for next epoch
-    '''
     def on_validation_epoch_end(self):
         #value, var, name
         name = 'valid'
@@ -258,20 +239,7 @@ class KelpClassifier(pl.LightningModule):
             for i, var in enumerate(metric):
                 log_to_graph(self, metric_list[i], var, name, self.global_step)
         self.valid_losses = [[],[],[],[],[],[]]  # reset for next epoch
-    '''
-    def on_test_epoch_end(self):
-        name = 'test'
-        metric = ['loss', 'accuracy', 'f1_score', 'precision', 'recall']
-        for i, var in enumerate(metric):
-            metric_list = self.test_losses[i]
-            metric_mean = np.mean(metric_list)
-            log_to_graph(self, metric_mean, var, name, self.global_step)
-            if var == 'f1_score':  
-                if real_test: # log differently if there are multiple testsets
-                    global path_label
-                    self.logger.experiment.add_scalars('test_f1_score', {name: metric_mean},path_label)
-        self.test_losses = [[],[],[],[],[],[]]  # reset for next epoch
-    '''
+
     def on_test_epoch_end(self):
         #value, var, name
         name = 'test'
@@ -420,7 +388,7 @@ def get_args():
 
     parser.add_argument('--backbone', metavar='backbone', type=str, help='Name of the model which should be used for transfer learning', default='inception_v3')
 
-    parser.add_argument('--real_test',  help='If True: a seperate dataset is used, if False dataset is extracted out of training set. ', action='store_true')  
+    parser.add_argument('--real_test',  help='If True: a seperate dataset is used, if False dataset is extracted out of training set. ', action='store_false')  
 
     parser.add_argument('--test_img_path', metavar='test_img_path', type=str, help='Path to the database of test images', default='/pvol/Ecklonia_Testbase/NSW_Broughton/')
 
@@ -592,7 +560,7 @@ def objective(trial: optuna.trial.Trial) -> float:
     ##########
     hyperparameters = dict(
             optimizer_name = optimizer_name,
-            learning_rate=model.learning_rate, #LEARNING_RATE, 
+            learning_rate=model.hparams.learning_rate, #LEARNING_RATE, 
             image_size = img_size, 
             backbone = backbone_name,
             #rvf_perc = rvf_perc, 
