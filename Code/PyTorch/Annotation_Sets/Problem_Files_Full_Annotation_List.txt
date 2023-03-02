@@ -7,7 +7,7 @@ Index: []
 Empty DataFrame
 Columns: [Unnamed: 0]
 Index: []
- ID: 5868 #why not (6011)
+ ID: 5868
 Empty DataFrame
 Columns: [Unnamed: 0]
 Index: []
@@ -19,39 +19,39 @@ Index: []
 Empty DataFrame
 Columns: [Unnamed: 0]
 Index: []
- ID: 4114 #why not (0)
+ ID: 4114
 Empty DataFrame
 Columns: [Unnamed: 0]
 Index: []
- ID: 5419 #why not (0)
+ ID: 5419
 Empty DataFrame
 Columns: [Unnamed: 0]
 Index: []
- ID: 5822 #why not (0)
+ ID: 5822
 Empty DataFrame
 Columns: [Unnamed: 0]
 Index: []
- ID: 5875 #why not (0)
+ ID: 5875
 Empty DataFrame
 Columns: [Unnamed: 0]
 Index: []
- ID: 5404 #why not (0)
+ ID: 5404
 Empty DataFrame
 Columns: [Unnamed: 0]
 Index: []
- ID: 10527 #why not (249)
-Empty DataFrame
-Columns: [Unnamed: 0]
-Index: [] 
- ID: 10528 #why not (39)
-Empty DataFrame
-Columns: [Unnamed: 0]
-Index: [] 
- ID: 10539 #why not (249)
+ ID: 10527
 Empty DataFrame
 Columns: [Unnamed: 0]
 Index: []
- ID: 10551 #why not (39)
+ ID: 10528
+Empty DataFrame
+Columns: [Unnamed: 0]
+Index: []
+ ID: 10539
+Empty DataFrame
+Columns: [Unnamed: 0]
+Index: []
+ ID: 10551
 Empty DataFrame
 Columns: [Unnamed: 0]
 Index: []
@@ -59,19 +59,15 @@ Index: []
 Empty DataFrame
 Columns: [Unnamed: 0]
 Index: []
- ID: 10616 #why not (39)
+ ID: 10616
 Empty DataFrame
 Columns: [Unnamed: 0]
 Index: []
- ID: 10617 #why not (249)
+ ID: 10617
 Empty DataFrame
 Columns: [Unnamed: 0]
 Index: []
- ID: 10623 #why not (0)
+ ID: 10624
 Empty DataFrame
-Columns: [Unnamed: 0]
-Index: []
- ID: 10624 #why not (0)
-Empty DataFrame
-Columns: [Unnamed: 0]
+Columns: [Record not found]
 Index: []
