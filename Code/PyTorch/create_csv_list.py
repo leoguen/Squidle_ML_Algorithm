@@ -50,8 +50,8 @@ class create_csv_list():
     '''
     def get_annotation_set(self, API_TOKEN, URL,  id_list, HERE):
         # Create .csv file to append to 
-        anno_name = '/Annotation_Sets/Full_Annotation_List_Deployment_Key.csv'
-        prob_name = '/Annotation_Sets/Problem_Files_Deployment_Annotation_List.txt'
+        anno_name = '/Annotation_Sets/Full_Annotation_List_NMSC.csv'
+        prob_name = '/Annotation_Sets/Problem_Files_NMSC_Annotation_List.txt'
         
         with open(HERE + anno_name, 'w') as creating_new_csv_file: 
             pass
