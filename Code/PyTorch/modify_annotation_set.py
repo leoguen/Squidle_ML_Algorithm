@@ -29,7 +29,7 @@ class modify_annotation_set():
         return num_eck, norm_data_df, og_distr_data_df
     '''
     def __init__(self):
-        self.sibling = True
+        self.sibling = False
         self.sib_factor = 0.3
 
     def delete_entries(self, csv_file_df, label, value):
@@ -196,7 +196,7 @@ class modify_annotation_set():
         print('Normalized Dataset size: {} with {} classes'.format(csv_file_df.pivot_table(index = ['label_name'], aggfunc ='size').sum(), len(csv_file_df.pivot_table(index = ['label_name'], aggfunc ='size'))))
         
         csv_file_df.reset_index(drop=True, inplace=True)
-        self.save_csv(csv_file_df, 'normalized')
+        self.save_csv(csv_file_df, 'normalized_deploymeny_key')
         return csv_file_df
 
     def save_csv(self, csv_file_df, description):
@@ -216,7 +216,7 @@ if __name__ == "__main__":
     here = os.path.dirname(os.path.abspath(__file__))
     #list_name = '/Annotation_Sets/Full_Annotation_List.csv'
     print('Loading CSV file, this may take a while.')
-    list_name = '/Annotation_Sets/1135142_review_list.csv'
+    list_name = '/Annotation_Sets/Full_Annotation_List_Deployment_Key.csv'
     csv_file_df= pd.read_csv(here + list_name, on_bad_lines='skip', dtype={'label_name': 'str', 'tag_names': 'str'}, low_memory=False) 
     
     print('Loaded {} entries with filename: {}'.format(len(csv_file_df.index), list_name))
