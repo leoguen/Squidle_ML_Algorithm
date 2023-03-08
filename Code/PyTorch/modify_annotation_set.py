@@ -216,18 +216,22 @@ if __name__ == "__main__":
     here = os.path.dirname(os.path.abspath(__file__))
     #list_name = '/Annotation_Sets/Full_Annotation_List.csv'
     print('Loading CSV file, this may take a while.')
-    list_name = '/Annotation_Sets/Full_Annotation_List_Deployment_Key.csv'
-    csv_file_df= pd.read_csv(here + list_name, on_bad_lines='skip', dtype={'label_name': 'str', 'tag_names': 'str'}, low_memory=False) 
+    list_name = '/Annotation_Sets/Full_Annotation_List_NMSC.csv'
+    csv_file_df= pd.read_csv(here + list_name, on_bad_lines='skip', low_memory=False) 
     
     print('Loaded {} entries with filename: {}'.format(len(csv_file_df.index), list_name))
 
     csv_file_df.columns = csv_file_df.columns.str.replace('[.]', '_', regex=True)
 
     data = modify_annotation_set()
-    
+    print(csv_file_df.label_translated_name.value_counts())
     #csv_file_df = data.delete_review(csv_file_df)
     
-    data.normalize_set(csv_file_df)
+    #data.normalize_set(csv_file_df)
+    
+    
+    
+    # was commented out before
     #num_eck, norm_data_df, og_distr_data_df = data.get_status(csv_file_df, here)
     
     #data.create_adap_set(csv_file_df, here, num_eck, norm_data_df, og_distr_data_df)

@@ -62,7 +62,7 @@ class create_csv_list():
         counter = 0
         # Iterate through all annotation ids
         for id in id_list: 
-            annotation_url = '/' + str(id) + '/export?template=dataframe.csv&disposition=attachment&include_columns=["label.id","label.uuid","label.name","tag_names","point.id","point.media.deployment.campaign.key","point.x","point.y","point.t","point.data","point.media.id","point.media.path_best","point.pose.timestamp","point.pose.lat","point.pose.lon","point.pose.alt","point.pose.dep","label.translated.id","label.translated.uuid","label.translated.name","label.translated.lineage_names","label.translated.translation_info"]&f={"operations":[{"module":"pandas","method":"json_normalize"},{"method":"sort_index","kwargs":{"axis":1}}]}&q={"filters":[{"name":"point","op":"has","val":{"name":"has_xy","op":"eq","val":true}},{"name":"label_id","op":"is_not_null"}]}&translate={"vocab_registry_keys":["worms","caab","catami"],"target_label_scheme_id":null}'
+            annotation_url = '/' + str(id) + '/export?template=dataframe.csv&disposition=attachment&include_columns=["label.id","label.uuid","label.name","tag_names","point.id","point.media.deployment.campaign.key","point.x","point.y","point.t","point.data","point.media.id","point.media.path_best","point.pose.timestamp","point.pose.lat","point.pose.lon","point.pose.alt","point.pose.dep","label.translated.id","label.translated.uuid","label.translated.name","label.translated.lineage_names","label.translated.translation_info"]&f={"operations":[{"module":"pandas","method":"json_normalize"},{"method":"sort_index","kwargs":{"axis":1}}]}&q={"filters":[{"name":"point","op":"has","val":{"name":"has_xy","op":"eq","val":true}},{"name":"label_id","op":"is_not_null"}]}&translate={"vocab_registry_keys":["worms","caab","catami"],"target_label_scheme_id":65}'
             
             with requests.Session() as s:
                 head = {'auth-token': API_TOKEN}
@@ -76,11 +76,11 @@ class create_csv_list():
                     #print(df.head(0))
                 
                 try:
-                    df = df[['label.id', 'label.name', 'label.uuid', 'point.id','point.media.deployment.campaign.key' , 'point.media.path_best', 'point.x', 'point.y', 'tag_names']]
+                    df = df[['label.id', 'label.name', 'label.uuid', 'point.id','point.media.deployment.campaign.key' , 'point.media.path_best', 'point.x', 'point.y', 'tag_names', 'label.translated.id','label.translated.lineage_names', 'label.translated.name','label.translated.translation_info','label.translated.uuid' ]]
                 except:
                     print("Problem with annotationset {}, will be skipped".format(id))
                     print(df.head(0))
-                    with open('/home/ubuntu/IMAS/Code/PyTorch/Annotation_Sets/Problem_Files_Full_Annotation_List.txt', 'a') as f:
+                    with open('/home/ubuntu/IMAS/Code/PyTorch/Annotation_Sets/Problem_Files_NMSC_Full_Annotation_List.txt', 'a') as f:
                         f.write('\n ID: ' + id + '\n')
                         f.write(str(df.head(0)))
                     #df = df.insert(0, id, "")

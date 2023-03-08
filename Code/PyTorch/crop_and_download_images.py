@@ -188,8 +188,8 @@ if __name__ == "__main__":
         for name, path in path_list:    
             print(bounding_box)
             here = os.path.dirname(os.path.abspath(__file__))
-            #save_path = '/pvol/Ecklonia_Testbase/' + name
-            save_path = '/pvol/Ecklonia_Database'
+            save_path = '/pvol/Ecklonia_Testbase/' + name
+            #save_path = '/pvol/Ecklonia_Database'
             list_name = path
 
             data = crop_download_images()
