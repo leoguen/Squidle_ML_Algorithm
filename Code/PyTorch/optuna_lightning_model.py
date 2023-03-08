@@ -39,46 +39,22 @@ from os import listdir
 
 writer = SummaryWriter()
 
+
 class CSV_Dataset(Dataset):
-    def __init__(self, img_size, test_list, test, inception, test_img_path):
+    def __init__(self, img_size, test_list, test, inception, csv_data_path):
+        self.csv_data_path = csv_data_path
         self.inception = inception
-        self.csv_file_df = pd.read_csv('/pvol/Ecklonia_Database/Original_images/106704_normalized_deployment_key_list.csv')
-        
-        
-        compare_dir_csv(self)
+        self.csv_file_df = pd.read_csv(csv_data_path)
+        self.class_map = {"Ecklonia" : 1, "Others": 0}
+        compare_dir_csv(self, csv_data_path)
         # Add unpadded and padded entries to data
 
-        '''
-        self.imgs_path = IMG_PATH + str(img_size)+ '_images/'
-        file_list = [self.imgs_path + 'Others', self.imgs_path + 'Padding/Others', self.imgs_path + 'Ecklonia', self.imgs_path + 'Padding/Ecklonia']
-        self.data = []
-        for class_path in file_list:
-            class_name = class_path.split("/")[-1]
-            for img_path in glob.glob(class_path + "/*.jpg"):
-                self.data.append([img_path, class_name])
-
-            self.class_map = {"Ecklonia" : 1, "Others": 0}
-        '''
     def __len__(self):
         #print(self.csv_file_df.shape[0])
         return self.csv_file_df.shape[0]    
     
     def __getitem__(self, idx):
-        """
-        if '.jpg/' in self.csv_file_df.point_media_path_best[idx]:
-            second_part = str(re.sub(".*/(.*).jpg/", "\\1", self.csv_file_df.point_media_path_best[idx])) 
-        elif '.jpg' in self.csv_file_df.point_media_path_best[idx]:
-            second_part = str(re.sub(".*/(.*).jpg", "\\1", self.csv_file_df.point_media_path_best[idx]))
-        elif '.JPG/' in self.csv_file_df.point_media_path_best[idx]:
-            second_part = str(re.sub(".*/(.*).JPG/", "\\1", self.csv_file_df.point_media_path_best[idx])) 
-        elif '.JPG' in self.csv_file_df.point_media_path_best[idx]:
-            second_part = str(re.sub(".*/(.*).JPG", "\\1", self.csv_file_df.point_media_path_best[idx])) 
-        else:
-            second_part =str(re.sub(".*/(.*)", "\\1", self.csv_file_df.point_media_path_best[idx]))
-
-        file_name = str(re.sub("\W", "_", self.csv_file_df.point_media_deployment_campaign_key[idx])) +"-"+ re.sub("\W", "_",second_part)
-        """
-        img_path = '/pvol/Ecklonia_Database/Original_images/All_Images/' + self.csv_file_df.file_name.iloc[idx]
+        img_path = str(re.sub(r'(.*)/.*', '\\1', self.csv_data_path)) + '/All_Images/' +self.csv_file_df.file_name.iloc[idx]
         class_id = torch.tensor(0)
         if self.csv_file_df.label_name.iloc[idx] == 'Ecklonia radiata': 
             class_id = torch.tensor(1)
@@ -91,12 +67,16 @@ class CSV_Dataset(Dataset):
         x_img, y_img = img.size
         x = x_img*x #Center position
         y = y_img*y #Center position
-        if x > (img_size/2): x = int (x - (img_size/2))
-        else: x =0
-        y = int (y + (img_size/2))
-        if y > y_img: y = y_img
         
-        cropped_img = torchvision.transforms.functional.crop(img, y, x, img_size, img_size)
+        # get crop coordinates
+        x0, x1, y0, y1 = get_crop_points(self, x, y, img, img_size)
+        cropped_img = img.crop((x0, y0, x1, y1))
+        x_perc = (x-x0)/(x1-x0)
+        y_perc = (y-y0)/(y1-y0)
+        x_crop_size, y_crop_size = cropped_img.size
+        x_crop =  x_perc
+        y_crop =  y_perc
+
         if self.inception:
             train_transforms = transforms.Compose([
             transforms.Resize((299, 299)),
@@ -117,9 +97,8 @@ class CSV_Dataset(Dataset):
                                 std=[0.229, 0.224, 0.225])
             ])
         img_tensor = train_transforms(cropped_img)
-        #print(type(img_tensor))
-        #class_id = torch.tensor(class_id)
-        return img_tensor, class_id
+
+        return img_tensor, class_id , x_crop, y_crop
 
 class GeneralDataset(Dataset):
     def __init__(self, img_size, test_list, test, inception, test_img_path):
@@ -234,10 +213,15 @@ class KelpClassifier(pl.LightningModule):
         #self.save_hyperparameters(ignore=['trainer','trial'])
 
     def train_dataloader(self):
-        return DataLoader(training_set, batch_size=self.batch_size, num_workers=os.cpu_count(),shuffle=False)
+        train_dataloader = DataLoader(training_set, batch_size=self.batch_size, num_workers=os.cpu_count(),shuffle=False)
+        display_dataloader(train_dataloader, 'train_dataloader')
+        return train_dataloader
     
     def val_dataloader(self):
-        return DataLoader(validation_set, batch_size=self.batch_size, num_workers=os.cpu_count(),shuffle=False)
+        val_dataloader = DataLoader(validation_set, batch_size=self.batch_size, num_workers=os.cpu_count(),shuffle=False)
+        display_dataloader(val_dataloader, 'val_dataloader')
+        return val_dataloader
+        #return DataLoader(validation_set, batch_size=self.batch_size, num_workers=os.cpu_count(),shuffle=False)
     
     def on_validation_end(self):
             epoch = self.current_epoch
@@ -260,7 +244,7 @@ class KelpClassifier(pl.LightningModule):
                 #shutil.rmtree(self.logger.log_dir, ignore_errors=True)
                 raise optuna.TrialPruned(message)
 
-    def forward(self, x):
+    def forward(self, x, x_crop, y_crop):
         x_mlp = x
         if self.backbone_name == 'inception_v3':
             self.model.eval()
@@ -272,23 +256,28 @@ class KelpClassifier(pl.LightningModule):
             x = self.classifier(representations)
         
         if MLP_OPT:
+            #! add crop here
             mlp_model = torch.jit.load(MLP_PATH, map_location='cuda')
             mlp_model.eval()
-            x_mlp = transforms.CenterCrop(24)(x_mlp)
-            x_mlp = mlp_model(x_mlp)
+            x_mlp_24 = torch.empty((len(x_mlp),3,24,24), dtype=torch.float32).cuda()
+            for idx in range(len(x_mlp)):
+                x_mlp_24[idx] = transforms.functional.crop(x_mlp[idx], int(y_crop[idx].item()*299) + 12, int(x_crop[idx].item()*299)-12, 24, 24)
+            x_mlp = mlp_model(x_mlp_24)
             return x, x_mlp
         return x
 
     def training_step(self, batch, batch_idx):
-        x, y = batch
-        metrics, loss, f1_score, top_eck_p = analyze_pred(self,x, y)
+        x, y, x_crop, y_crop = batch
+        #x, y = batch
+        metrics, loss, f1_score, top_eck_p = analyze_pred(self,x, y, x_crop, y_crop)
         for i, metric in enumerate(metrics):
             self.training_losses[i].append(metric)
         return loss
     
     def validation_step(self, batch, batch_idx):
-        x, y = batch
-        metrics, loss, f1_score, top_eck_p = analyze_pred(self,x, y)
+        x, y, x_crop, y_crop = batch
+        #x, y = batch
+        metrics, loss, f1_score, top_eck_p = analyze_pred(self,x, y, x_crop, y_crop)
         for i, metric in enumerate(metrics):
             self.valid_losses[i].append(metric)
         # only log when not sanity checking
@@ -298,8 +287,9 @@ class KelpClassifier(pl.LightningModule):
         image_to_tb(self, batch, batch_idx)
     
     def test_step(self, batch, batch_idx):
-        x, y = batch
-        metrics, loss, f1_score,top_eck_p = analyze_pred(self,x, y)
+        x, y, x_crop, y_crop = batch
+        #x, y = batch
+        metrics, loss, f1_score,top_eck_p = analyze_pred(self,x, y, x_crop, y_crop)
         for i, metric in enumerate(metrics):
             self.test_losses[i].append(metric)
         for single_prob in top_eck_p:
@@ -366,7 +356,8 @@ class KelpClassifier(pl.LightningModule):
     
     def predict_step(self, batch, batch_idx):
         # This can be used for implementation
-        x, y = batch
+        x, y, x_crop, y_crop = batch
+        #x, y = batch
         y_hat = self(x)
         #loss = F.cross_entropy(y_hat, y)
         prob = F.softmax(y_hat, dim=1)
@@ -378,9 +369,29 @@ class KelpClassifier(pl.LightningModule):
         return getattr(torch.optim, optimizer_name)(self.parameters(), lr=self.hparams.learning_rate)
         #return torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
 
-def compare_dir_csv(self):
-    my_path = '/pvol/Ecklonia_Database/Original_images/All_Images/'
+
+def get_crop_points(self, x, y, original_image, img_size):
+    x_img, y_img = original_image.size
+    crop_dist = img_size/2 
+    if x - crop_dist < 0: x0 = 0
+    else: x0 = x - crop_dist
+
+    if y - crop_dist < 0: y0 = 0
+    else: y0 = y - crop_dist
+
+    if x + crop_dist > x_img: x1 = x_img
+    else: x1 = x + crop_dist
+
+    if y + crop_dist > y_img: y1 = y_img
+    else: y1 = y + crop_dist
+
+    return  int(x0), int(x1), int(y0), int(y1)
+
+def compare_dir_csv(self, csv_path):
+    #csv_path = csv_path.replace(r'(.*)/.*', '\\1', regex=True).astype('str')
+    img_path = str(re.sub(r'(.*)/.*', '\\1', csv_path)) + '/All_Images/' 
     # delete every kind of ending that corresponds to jpg in the web address
+    self.csv_file_df.columns = self.csv_file_df.columns.str.replace('[.]', '_')
     self.csv_file_df['file_name'] = self.csv_file_df.point_media_path_best.str.replace(r'(.*)\.(?i)jpg.?', '\\1', regex=True).astype('str')
     # delete everything before the last '/' in the web address
     self.csv_file_df.file_name = self.csv_file_df.file_name.str.replace(r'.*/(.*)', '\\1', regex=True).astype('str')
@@ -390,15 +401,13 @@ def compare_dir_csv(self):
     self.csv_file_df.file_name = self.csv_file_df.point_media_deployment_campaign_key.str.replace(r"\W", "_", regex=True).astype('str')+'-' + self.csv_file_df.file_name + '.jpg'
     
     # Get all files that are in dir
-    onlyfiles = [f for f in listdir(my_path) if isfile(join(my_path, f))]
+    onlyfiles = [f for f in listdir(img_path) if isfile(join(img_path, f))]
     dir_list_df = pd.Series(onlyfiles)
     # Check which files are actually in the dir
     self.csv_file_df["exists"] = self.csv_file_df.file_name.isin(dir_list_df)
     print(self.csv_file_df.exists.value_counts())
     # Delete all entries that are not downloaded from CSV file
     self.csv_file_df = self.csv_file_df[self.csv_file_df.exists]
-
-
 
 def create_roc_curve(self):
     #TP,TN,FP,FN
@@ -434,8 +443,6 @@ def create_roc_curve(self):
         #self.logger.experiment.add_scalars('test_roc_exp', {'test': fpr*100},'path_label')
         #self.logger.experiment.add_scalars(var, {name: value},fpr*100)
         #self.logger.experiment.add_scalars('test_roc', {name: metric_list[i]},path_label)
-    
-
 
 def set_parameter_requires_grad(model, feature_extracting):
     if feature_extracting:
@@ -451,7 +458,6 @@ def get_pred_histogram(self, test_eck_p):
         elif (entry.item() >0.8 and entry.item()<=0.9): test_pred_hist[3] += 1
         elif entry.item() >0.9: test_pred_hist[4] += 1
     return test_pred_hist
-
 
 def get_acc_prec_rec_f1(self, metric):
     TP = np.mean(metric[2]) 
@@ -471,14 +477,14 @@ def get_acc_prec_rec_f1(self, metric):
         f1_score = 2*(precision*recall)/(precision+recall)
     return accuracy, precision, recall, f1_score
 
-def analyze_pred(self,x,y):
+def analyze_pred(self,x,y, x_crop, y_crop):
         if MLP_OPT:
-            y_hat, y_mlp = self(x)
+            y_hat, y_mlp = self(x, x_crop, y_crop)
             prob = F.softmax(y_hat, dim=1)
             prob_mlp = F.softmax(y_mlp, dim=1)
             prob = prob*(1-MLP_PERC) + prob_mlp*MLP_PERC
         else:
-            y_hat = self(x)
+            y_hat = self(x, x_crop, y_crop)
             prob = F.softmax(y_hat, dim=1)
         loss = F.cross_entropy(y_hat, y)
         top_p, top_class = prob.topk(1, dim = 1)
@@ -486,8 +492,8 @@ def analyze_pred(self,x,y):
         global threshold
         top_og = top_p.detach().clone()
 
-        for idx, value in enumerate(top_p):
-            if value < threshold: top_p[idx] = 0
+        #for idx, value in enumerate(top_p):
+        #    if value < threshold: top_p[idx] = 0
 
         top_eck_p = top_p * top_class
         top_class = torch.reshape(top_class, (-1,))
@@ -531,19 +537,21 @@ def get_args():
 
     parser.add_argument('--eck_test_perc', metavar='eck_tp', type=float, help='The percentage of ecklonia examples in the test set', default=0.5)
 
-    parser.add_argument('--limit_train_batches', metavar='ltrb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.1) #!
+    parser.add_argument('--limit_train_batches', metavar='ltrb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=1.0)
 
-    parser.add_argument('--limit_val_batches', metavar='lvb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.1) #!
+    parser.add_argument('--limit_val_batches', metavar='lvb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=1.0)
 
-    parser.add_argument('--limit_test_batches', metavar='lteb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.1) #!
+    parser.add_argument('--limit_test_batches', metavar='lteb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=1.0)
 
-    parser.add_argument('--epochs', metavar='epochs', type=int, help='The number of epcohs the algorithm trains', default=2)#!
+    parser.add_argument('--epochs', metavar='epochs', type=int, help='The number of epcohs the algorithm trains', default=15)
 
     parser.add_argument('--log_path', metavar='log_path', type=str, help='The path where the logger files are saved', default='/pvol/logs/')
 
     parser.add_argument('--log_name', metavar='log_name', type=str, help='Name of the experiment.', default='unnamed')
 
     parser.add_argument('--img_path', metavar='img_path', type=str, help='Path to the database of images', default='/pvol/Ecklonia_Database/')
+
+    parser.add_argument('--csv_path', metavar='csv_path', type=str, help='Path to the csv file describing the images', default='/pvol/Ecklonia_Database/Original_images/106704_normalized_deployment_key_list.csv')
 
     parser.add_argument('--n_trials', metavar='n_trials', type=int, help='Number of trials that Optuna runs for', default=None)
 
@@ -555,7 +563,7 @@ def get_args():
 
     parser.add_argument('--backbone', metavar='backbone', type=str, help='Name of the model which should be used for transfer learning', default='inception_v3')
 
-    parser.add_argument('--real_test',  help='If True: a seperate dataset is used, if False dataset is extracted out of training set. ', action='store_false') #!  
+    parser.add_argument('--real_test',  help='If True: a seperate dataset is used, if False dataset is extracted out of training set. ', action='store_true')   
 
     parser.add_argument('--test_img_path', metavar='test_img_path', type=str, help='Path to the database of test images', default='/pvol/Ecklonia_Testbase/NSW_Broughton/')
 
@@ -563,7 +571,7 @@ def get_args():
 
     args =parser.parse_args()
     no_filters = 0
-    return args.percent_valid_examples,args.percent_test_examples, args.eck_test_perc,args.limit_train_batches,args.limit_val_batches,args.limit_test_batches,args.epochs,args.log_path,args.log_name,args.img_path, args.n_trials,args.mlp_opt, args.mlp_perc, args.mlp_path,args.backbone, no_filters, args.real_test, args.test_img_path, args.img_size
+    return args.percent_valid_examples,args.percent_test_examples, args.eck_test_perc,args.limit_train_batches,args.limit_val_batches,args.limit_test_batches,args.epochs,args.log_path,args.log_name,args.img_path, args.n_trials,args.mlp_opt, args.mlp_perc, args.mlp_path,args.backbone, no_filters, args.real_test, args.test_img_path, args.img_size, args.csv_path
 
 def log_to_graph(self, value, var, name ,global_step):
     self.logger.experiment.add_scalars(var, {name: value},global_step)
@@ -616,7 +624,18 @@ def get_test_dataset(img_size, PERCENT_TEST_EXAMPLES, ECK_TEST_PERC):
                     counter[idx][class_id] += 1
     return both_data
 
-def display_testset(test_loader):
+def display_dataloader(data_loader, name):
+    #data_loader 
+    counter = [0,0]
+    for idx in data_loader.dataset.indices:
+        if data_loader.dataset.dataset.csv_file_df.label_name.iloc[idx] == 'Ecklonia radiata':
+            #print('Eck Label ' + data_loader.dataset.dataset.csv_file_df.label_name[idx])
+            counter[1] += 1 
+        else: 
+            #print('Others label '+ (data_loader.dataset.dataset.csv_file_df.label_name[idx]))
+            counter[0] += 1
+    print('The {} comprises of: Ecklonia {} & Others {} \n'.format(name, counter[1], counter[0]))
+    '''
     counter = [[0,0],[0,0]] # First [] is Others, then sub [] is unpadded, padded
     pad_idx = 0
     for i in range(len(test_loader.dataset.data)):
@@ -629,7 +648,7 @@ def display_testset(test_loader):
         counter[class_id][pad_idx] += 1
     print('The Test-Dataset comprises of: \nUniform Ecklonia {}\nUniform Others {} \nPadded Ecklonia {}\nPadded Others {}'.format(counter[1][0], counter[0][0], counter[1][1], counter[0][1]))
     #print(test_loader.dataset.data[1][1])
-
+'''
 def objective(trial: optuna.trial.Trial) -> float:
 
     ###############
@@ -646,17 +665,19 @@ def objective(trial: optuna.trial.Trial) -> float:
     global optimizer_name
     #optimizer_name = trial.suggest_categorical("optimizer", ['Adam', 'Adagrad', 'Adadelta', 'Adamax', 'AdamW', 'ASGD', 'NAdam', 'RAdam', 'RMSprop', 'Rprop', 'SGD'])
     optimizer_name = 'SGD'
-    global MLP_PERC, rvf_perc, rhf_perc, rauto_perc, requa_perc, rbright_perc, rhue_perc
-    MLP_PERC = trial.suggest_float("mlp_perc", 0, 1) 
+    global rvf_perc, rhf_perc, rauto_perc, requa_perc, rbright_perc, rhue_perc
+    if MLP_OPT:
+        global MLP_PERC 
+        MLP_PERC = trial.suggest_float("mlp_perc", 0, 1) 
+    
     global threshold
-    threshold = trial.suggest_float("threshold", 0.5, 1)
-    #rvf_perc = trial.suggest_float("rvf_perc", 0, 1)
-    #rhf_perc = trial.suggest_float("rhf_perc", 0, 1)
-    #rauto_perc = trial.suggest_float("rauto_perc", 0, 1)
-    #requa_perc = trial.suggest_float("requa_perc", 0, 1)
-    #rbright_perc = trial.suggest_float("rbright_perc", 0, 1)
-    #rhue_perc = trial.suggest_float("rhue_perc", 0, 0.5)
-
+    #threshold = trial.suggest_float("threshold", 0.5, 1)
+    threshold = 0.5
+    
+    global img_size
+    img_size = trial.suggest_int("img_size", 16, 2048, step=16)
+    
+    #img_size = 1024
     #img_size = trial.suggest_categorical("img_size", [  
                     #"256", 
                     #"288",
@@ -684,10 +705,10 @@ def objective(trial: optuna.trial.Trial) -> float:
     else: 
         test_list = get_test_dataset(img_size, PERCENT_TEST_EXAMPLES, ECK_TEST_PERC)
     
-    train_val_set = CSV_Dataset(img_size, test_list, test = False, inception = inception, test_img_path = test_img_path)
+    train_val_set = CSV_Dataset(img_size, test_list, test = False, inception = inception, csv_data_path = csv_path)
     
     global training_set, validation_set
-    training_set, validation_set = torch.utils.data.random_split(train_val_set,[0.90, 0.10], generator=torch.Generator().manual_seed(123))
+    training_set, validation_set = torch.utils.data.random_split(train_val_set,[0.90, 0.10], generator=torch.Generator().manual_seed(423))
 
     # Create data loaders for our datasets; shuffle for training and for validation
     #train_loader = torch.utils.data.DataLoader(training_set, BATCHSIZE, shuffle=True, num_workers=os.cpu_count())
@@ -710,7 +731,7 @@ def objective(trial: optuna.trial.Trial) -> float:
         precision=16,
         log_every_n_steps=50,
         #auto_scale_batch_size="power",
-        #auto_lr_find=True,
+        auto_lr_find=True,
     )
     
     model = KelpClassifier(backbone_name, 
@@ -765,24 +786,33 @@ def objective(trial: optuna.trial.Trial) -> float:
     f1_score_end = trainer.callback_metrics["f1_score"].item()
 
     if real_test:
+        
+        path_list = [
+            '/pvol/Ecklonia_Testbase/WA/Original_images/annotations-u45-leo_kelp_SWC_WA_AI_test-leo_kelp_AI_SWC_WA_test_25pts-8148-7652a9b48f0e3186fe5d-dataframe.csv', 
+            '/pvol/Ecklonia_Testbase/NSW_Broughton/Original_images/annotations-u45-leo_kelp_AI_test_broughton_is_NSW-leo_kelp_AI_test_broughton_is_25pts-8152-7652a9b48f0e3186fe5d-dataframe.csv', 
+            '/pvol/Ecklonia_Testbase/VIC_Prom/Original_images/annotations-u45-leo_kelp_AI_test_prom_VIC-leo_kelp_AI_test_prom_25pts-8150-7652a9b48f0e3186fe5d-dataframe.csv',
+            '/pvol/Ecklonia_Testbase/VIC_Discoverybay/Original_images/annotations-u45-leo_kelp_AI_test_discoverybay_VIC_phylospora-leo_kelp_AI_test_db_phylospora_25pts-8149-7652a9b48f0e3186fe5d-dataframe.csv', 
+            '/pvol/Ecklonia_Testbase/TAS_Lanterns/Original_images/annotations-u45-leo_kelp_AI_test_lanterns_TAS-leo_kelp_AI_test_lanterns_25pts-8151-7652a9b48f0e3186fe5d-dataframe.csv']
+        '''
         path_list = [
             '/pvol/Ecklonia_Testbase/WA/', 
             '/pvol/Ecklonia_Testbase/NSW_Broughton/', 
             '/pvol/Ecklonia_Testbase/VIC_Prom/',
             '/pvol/Ecklonia_Testbase/VIC_Discoverybay/', 
             '/pvol/Ecklonia_Testbase/TAS_Lanterns/']
+        '''
         for idx ,path in enumerate(path_list):
             global path_label 
             #path_label = re.sub(".*/(.*)/", "\\1", path)
             path_label = idx
-            test_set = GeneralDataset(img_size, test_list, test = True, inception=inception, test_img_path = path)
+            test_set = CSV_Dataset(img_size, test_list, test = True, inception=inception, csv_data_path= path)
             test_loader = torch.utils.data.DataLoader(test_set, batch_size=TEST_BATCHSIZE, shuffle=False, num_workers=os.cpu_count())
-            display_testset(test_loader)
+            #display_dataloader(test_loader, 'Test Loader'+str(path_label))
             trainer.test(ckpt_path='best', dataloaders=test_loader)
     else: 
         test_set = GeneralDataset(img_size, test_list, test = True, inception=inception,test_img_path = test_img_path)
         test_loader = torch.utils.data.DataLoader(test_set, batch_size=TEST_BATCHSIZE, shuffle=False, num_workers=os.cpu_count())
-        display_testset(test_loader)
+        #display_dataloader(test_loader, 'Test Loader Generaldataset')
         trainer.test(ckpt_path='best', dataloaders=test_loader)
     
     print('Number of samples overall: {}'.format(len(train_val_set) + len(test_set)))
@@ -790,7 +820,7 @@ def objective(trial: optuna.trial.Trial) -> float:
     return f1_score_end
 
 if __name__ == '__main__':
-    PERCENT_VALID_EXAMPLES, PERCENT_TEST_EXAMPLES, ECK_TEST_PERC, LIMIT_TRAIN_BATCHES, LIMIT_VAL_BATCHES, LIMIT_TEST_BATCHES, EPOCHS, LOGGER_PATH, LOG_NAME, IMG_PATH, N_TRIALS, MLP_OPT, MLP_PERC, MLP_PATH, backbone_name, no_filters, real_test, test_img_path, img_size = get_args()
+    PERCENT_VALID_EXAMPLES, PERCENT_TEST_EXAMPLES, ECK_TEST_PERC, LIMIT_TRAIN_BATCHES, LIMIT_VAL_BATCHES, LIMIT_TEST_BATCHES, EPOCHS, LOGGER_PATH, LOG_NAME, IMG_PATH, N_TRIALS, MLP_OPT, MLP_PERC, MLP_PATH, backbone_name, no_filters, real_test, test_img_path, img_size, csv_path = get_args()
     
     test_log_count = 0 # Needed to display all five datasets
 
