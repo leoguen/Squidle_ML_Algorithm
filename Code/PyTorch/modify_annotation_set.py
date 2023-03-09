@@ -224,7 +224,9 @@ if __name__ == "__main__":
     csv_file_df.columns = csv_file_df.columns.str.replace('[.]', '_', regex=True)
 
     data = modify_annotation_set()
-    print(csv_file_df.label_translated_name.value_counts())
+    csv_file_df = csv_file_df.loc[csv_file_df['label_translated_name'] == 'Seagrass cover']
+    print(len(csv_file_df))
+    print(csv_file_df.point_media_deployment_campaign_key.value_counts())
     #csv_file_df = data.delete_review(csv_file_df)
     
     #data.normalize_set(csv_file_df)
