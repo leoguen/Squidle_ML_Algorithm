@@ -36,6 +36,8 @@ import re
 import pandas as pd
 from os.path import isfile, join
 from os import listdir
+#import torch.multiprocessing
+#torch.multiprocessing.set_sharing_strategy('file_system')
 
 writer = SummaryWriter()
 
@@ -65,11 +67,14 @@ class CSV_Dataset(Dataset):
         y = self.csv_file_df.point_y.iloc[idx] # At this point only float
         #print(img.size)
         x_img, y_img = img.size
+        loc_img_size = img_size
+        if crop_perc != 0:
+            loc_img_size = int((x_img + y_img)/2 * crop_perc)
         x = x_img*x #Center position
         y = y_img*y #Center position
         
         # get crop coordinates
-        x0, x1, y0, y1 = get_crop_points(self, x, y, img, img_size)
+        x0, x1, y0, y1 = get_crop_points(self, x, y, img, loc_img_size)
         cropped_img = img.crop((x0, y0, x1, y1))
         x_perc = (x-x0)/(x1-x0)
         y_perc = (y-y0)/(y1-y0)
@@ -269,7 +274,7 @@ class KelpClassifier(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         x, y, x_crop, y_crop = batch
         #x, y = batch
-        metrics, loss, f1_score, top_eck_p = analyze_pred(self,x, y, x_crop, y_crop)
+        metrics, loss, f1_score, top_eck_p,top_class, res_y, top_p = analyze_pred(self,x, y, x_crop, y_crop)
         for i, metric in enumerate(metrics):
             self.training_losses[i].append(metric)
         return loss
@@ -277,7 +282,7 @@ class KelpClassifier(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         x, y, x_crop, y_crop = batch
         #x, y = batch
-        metrics, loss, f1_score, top_eck_p = analyze_pred(self,x, y, x_crop, y_crop)
+        metrics, loss, f1_score, top_eck_p, top_class, res_y, top_p = analyze_pred(self,x, y, x_crop, y_crop)
         for i, metric in enumerate(metrics):
             self.valid_losses[i].append(metric)
         # only log when not sanity checking
@@ -289,7 +294,8 @@ class KelpClassifier(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         x, y, x_crop, y_crop = batch
         #x, y = batch
-        metrics, loss, f1_score,top_eck_p = analyze_pred(self,x, y, x_crop, y_crop)
+        metrics, loss, f1_score,top_eck_p, top_class, res_y, top_p = analyze_pred(self,x, y, x_crop, y_crop)
+        #metrics=[loss.item(), accuracy.item(), TP, TN, FP, FN]
         for i, metric in enumerate(metrics):
             self.test_losses[i].append(metric)
         for single_prob in top_eck_p:
@@ -526,7 +532,7 @@ def analyze_pred(self,x,y, x_crop, y_crop):
         #rec_score = rec_metric(top_class, y)
         #metrics=[loss.item(), accuracy.item(), f1_score.item(), prec_score.item(), rec_score.item()]
         metrics=[loss.item(), accuracy.item(), TP, TN, FP, FN]
-        return metrics, loss, f1_score, top_eck_p
+        return metrics, loss, f1_score, top_eck_p, top_class, y, top_p
 
 def get_args():
     parser = argparse.ArgumentParser(description='Enter Parameters to define model training.')
@@ -537,13 +543,13 @@ def get_args():
 
     parser.add_argument('--eck_test_perc', metavar='eck_tp', type=float, help='The percentage of ecklonia examples in the test set', default=0.5)
 
-    parser.add_argument('--limit_train_batches', metavar='ltrb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=1.0)
+    parser.add_argument('--limit_train_batches', metavar='ltrb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=1.0) #!
 
-    parser.add_argument('--limit_val_batches', metavar='lvb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=1.0)
+    parser.add_argument('--limit_val_batches', metavar='lvb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=1.0) #!
 
     parser.add_argument('--limit_test_batches', metavar='lteb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=1.0)
 
-    parser.add_argument('--epochs', metavar='epochs', type=int, help='The number of epcohs the algorithm trains', default=15)
+    parser.add_argument('--epochs', metavar='epochs', type=int, help='The number of epcohs the algorithm trains', default=15) 
 
     parser.add_argument('--log_path', metavar='log_path', type=str, help='The path where the logger files are saved', default='/pvol/logs/')
 
@@ -567,11 +573,15 @@ def get_args():
 
     parser.add_argument('--test_img_path', metavar='test_img_path', type=str, help='Path to the database of test images', default='/pvol/Ecklonia_Testbase/NSW_Broughton/')
 
-    parser.add_argument('--img_size', metavar='img_size', type=int, help='Defines the size of the used image.', default=299)
+    parser.add_argument('--img_size', metavar='img_size', type=int, help=
+    'Defines the size of the used image.', default=299)
+    
+    parser.add_argument('--crop_perc', metavar='crop_perc', type=int, help= 'Defines percentage that is used to crop the image.', default=0.0)
+    
 
     args =parser.parse_args()
     no_filters = 0
-    return args.percent_valid_examples,args.percent_test_examples, args.eck_test_perc,args.limit_train_batches,args.limit_val_batches,args.limit_test_batches,args.epochs,args.log_path,args.log_name,args.img_path, args.n_trials,args.mlp_opt, args.mlp_perc, args.mlp_path,args.backbone, no_filters, args.real_test, args.test_img_path, args.img_size, args.csv_path
+    return args.percent_valid_examples,args.percent_test_examples, args.eck_test_perc,args.limit_train_batches,args.limit_val_batches,args.limit_test_batches,args.epochs,args.log_path,args.log_name,args.img_path, args.n_trials,args.mlp_opt, args.mlp_perc, args.mlp_path,args.backbone, no_filters, args.real_test, args.test_img_path, args.img_size, args.csv_path, args.crop_perc
 
 def log_to_graph(self, value, var, name ,global_step):
     self.logger.experiment.add_scalars(var, {name: value},global_step)
@@ -674,24 +684,9 @@ def objective(trial: optuna.trial.Trial) -> float:
     #threshold = trial.suggest_float("threshold", 0.5, 1)
     threshold = 0.5
     
-    global img_size
-    img_size = trial.suggest_int("img_size", 16, 2048, step=16)
+    #global img_size
+    #img_size = trial.suggest_int("img_size", 16, 2048, step=16)
     
-    #img_size = 1024
-    #img_size = trial.suggest_categorical("img_size", [  
-                    #"256", 
-                    #"288",
-                    #'299',
-                    #'304', 
-                    #"320", 
-                    #'400', 
-                    #'448',
-                    #'480', 
-                    #'512', 
-                    #'544',
-                    #'576',
-                    #'608' 
-    #                ])
     ##############
     # Data Loading
     ##############
@@ -718,9 +713,15 @@ def objective(trial: optuna.trial.Trial) -> float:
 
     acc_val = 'cpu'
     if torch.cuda.is_available(): acc_val = 'gpu'
+    
+    if crop_perc != 0:
+        dir = LOGGER_PATH+LOG_NAME+'/perc_'+str(int(crop_perc*100))+'/' 
+    else: 
+        dir = LOGGER_PATH+LOG_NAME+'/'+str(img_size)+'/'
+
     trainer = pl.Trainer(
         logger=True,
-        default_root_dir=LOGGER_PATH+LOG_NAME+'/'+str(img_size)+'/',
+        default_root_dir=dir,
         enable_checkpointing=True,
         max_epochs=EPOCHS,
         accelerator=acc_val,
@@ -737,7 +738,7 @@ def objective(trial: optuna.trial.Trial) -> float:
     model = KelpClassifier(backbone_name, 
                             no_filters, 
                             #LEARNING_RATE, 
-                            batch_size = 128, 
+                            batch_size = 32, 
                             trial = trial, 
                             #monitor ='f1_score', 
                             trainer= trainer,  
@@ -820,22 +821,27 @@ def objective(trial: optuna.trial.Trial) -> float:
     return f1_score_end
 
 if __name__ == '__main__':
-    PERCENT_VALID_EXAMPLES, PERCENT_TEST_EXAMPLES, ECK_TEST_PERC, LIMIT_TRAIN_BATCHES, LIMIT_VAL_BATCHES, LIMIT_TEST_BATCHES, EPOCHS, LOGGER_PATH, LOG_NAME, IMG_PATH, N_TRIALS, MLP_OPT, MLP_PERC, MLP_PATH, backbone_name, no_filters, real_test, test_img_path, img_size, csv_path = get_args()
+    PERCENT_VALID_EXAMPLES, PERCENT_TEST_EXAMPLES, ECK_TEST_PERC, LIMIT_TRAIN_BATCHES, LIMIT_VAL_BATCHES, LIMIT_TEST_BATCHES, EPOCHS, LOGGER_PATH, LOG_NAME, IMG_PATH, N_TRIALS, MLP_OPT, MLP_PERC, MLP_PATH, backbone_name, no_filters, real_test, test_img_path, img_size, csv_path, crop_perc = get_args()
     
     test_log_count = 0 # Needed to display all five datasets
 
     if MLP_OPT: print('MLP is activated')
-    study = optuna.create_study(direction="maximize", pruner=optuna.pruners.MedianPruner())
-    study.optimize(objective, n_trials=N_TRIALS, timeout=None)
+    # Used for grid search
+    size_array = [416]#, 1440 ,1760]
+    for size in size_array:
+    #for size in range(2048,16,-32): #!
+        img_size = size #!
+        study = optuna.create_study(direction="maximize", pruner=optuna.pruners.MedianPruner())
+        study.optimize(objective, n_trials=N_TRIALS, timeout=None)
 
-    print("Number of finished trials: {}".format(len(study.trials)))
-    print("Best trial:")
-    trial = study.best_trial
+        print("Number of finished trials: {}".format(len(study.trials)))
+        print("Best trial:")
+        trial = study.best_trial
 
-    print("  Value: {}".format(trial.value))
+        print("  Value: {}".format(trial.value))
 
-    print("  Params: ")
-    for key, value in trial.params.items():
-        print("    {}: {}".format(key, value))
-    
+        print("  Params: ")
+        for key, value in trial.params.items():
+            print("    {}: {}".format(key, value))
+        
     #cli_main()
