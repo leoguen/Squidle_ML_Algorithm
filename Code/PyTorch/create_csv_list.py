@@ -50,8 +50,8 @@ class create_csv_list():
     '''
     def get_annotation_set(self, API_TOKEN, URL,  id_list, HERE):
         # Create .csv file to append to 
-        anno_name = '/Annotation_Sets/Full_Annotation_List_NMSC.csv'
-        prob_name = '/Annotation_Sets/Problem_Files_NMSC_Annotation_List.txt'
+        anno_name = '/Annotation_Sets/720_Full_Annotation_List_NMSC.csv'
+        prob_name = '/Annotation_Sets/720_Problem_Files_NMSC_Annotation_List.txt'
         
         with open(HERE + anno_name, 'w') as creating_new_csv_file: 
             pass
@@ -81,7 +81,7 @@ class create_csv_list():
                     print("Problem with annotationset {}, will be skipped".format(id))
                     print(df.head(0))
                     with open('/home/ubuntu/IMAS/Code/PyTorch/Annotation_Sets/Problem_Files_NMSC_Full_Annotation_List.txt', 'a') as f:
-                        f.write('\n ID: ' + id + '\n')
+                        f.write('\n ID: ' + str(id) + '\n')
                         f.write(str(df.head(0)))
                     #df = df.insert(0, id, "")
                     #df.head(0).to_csv(path_or_buf=HERE+prob_name, mode='a', index=False, header=True)
@@ -106,9 +106,9 @@ if __name__ == "__main__":
     data = create_csv_list()
     API_TOKEN = data.load_token(HERE)
     
-    #id_list = data.get_annotation_id(API_TOKEN, URL,  dataset_url, HERE)
+    id_list = data.get_annotation_id(API_TOKEN, URL,  dataset_url, HERE)
     
-
+    '''
     # For faster testing pruposes a list file is just loaded
     # empty list to read list from a file
     id_list = []
@@ -123,7 +123,7 @@ if __name__ == "__main__":
             # add current item to the list
             id_list.append(x)
 
-    print(id_list)
+    print(id_list)'''
     print('Retrieved a list of {} annotation sets.'.format(len(id_list)))
     annotation_url = URL+dataset_url
     NAME = data.get_annotation_set(API_TOKEN, annotation_url,  id_list, HERE)
