@@ -30,7 +30,13 @@ class modify_annotation_set():
     '''
     def __init__(self):
         self.sibling = False
+        self.red_list = False
         self.sib_factor = 0.3
+        self.coi = "Hard coral cover" # Class of Interest
+        #Macroalgal canopy cover
+        #Hard coral cover
+        #Seagrass cover
+        self.row_name = "label_translated_name"
 
     def delete_entries(self, csv_file_df, label, value):
         shape_before = csv_file_df.shape[0]
@@ -41,10 +47,11 @@ class modify_annotation_set():
     def delete_review(self, csv_file_df): 
         shape_before = csv_file_df.shape[0]
         og_shape =shape_before
-        red_list_df = pd.read_csv("/home/ubuntu/IMAS/Code/PyTorch/Annotation_Sets/red_list.csv", dtype=str, usecols=['label_name'])
-        for value in red_list_df['label_name']:
-            csv_file_df = self.delete_entries(csv_file_df, 'label_name', value)
-        
+        if self.red_list:
+            red_list_df = pd.read_csv("/home/ubuntu/IMAS/Code/PyTorch/Annotation_Sets/red_list.csv", dtype=str, usecols=['label_name'])
+            for value in red_list_df['label_name']:
+                csv_file_df = self.delete_entries(csv_file_df, 'label_name', value)
+
         csv_file_df = self.delete_entries(csv_file_df, 'tag_names', 'Flagged For Review')
         #print('Not being saved to reduce space.')
         # Update the index after deleting entries 
@@ -136,7 +143,7 @@ class modify_annotation_set():
     '''
     def get_norm_csv(self, csv_file_df):
         # Get list with all labels and count of each
-        classes_df = csv_file_df.pivot_table(index = ['label_name'], aggfunc ='size')
+        classes_df = csv_file_df.pivot_table(index = [self.row_name], aggfunc ='size')
         #classes_df = classes_df.index.drop_duplicates(keep='first')
 
         if self.sibling:
@@ -149,7 +156,7 @@ class modify_annotation_set():
             only_sib_classes_df = classes_df.loc[sib_list_df['Sibling_name']]
 
             # Normalize list without siblings and reduce to percentage defined by self.sib_factor
-            norm_classes_df = no_sib_classes_df.div(no_sib_classes_df.drop('Ecklonia radiata').sum()/(1-self.sib_factor))
+            norm_classes_df = no_sib_classes_df.div(no_sib_classes_df.drop(self.coi).sum()/(1-self.sib_factor))
             
             # Normalize list with only siblings and reduce to percentage defined by self.sib_factor
             only_sib_classes_df = only_sib_classes_df.div(only_sib_classes_df.sum()/(self.sib_factor))
@@ -159,17 +166,17 @@ class modify_annotation_set():
 
         else:
             # Normalize all classes so that the overall number is equal to Ecklonia entries
-            norm_classes_df = classes_df.div(classes_df.drop('Ecklonia radiata').sum())
+            norm_classes_df = classes_df.div(classes_df.drop(self.coi).sum())
         
-        norm_classes_df = (norm_classes_df.mul(classes_df['Ecklonia radiata'])).astype(int)
+        norm_classes_df = (norm_classes_df.mul(classes_df[self.coi])).astype(int)
 
-        # Correct Ecklonia number to all entries
-        norm_classes_df['Ecklonia radiata'] = classes_df['Ecklonia radiata']
+        # Correct class of interest number to all entries
+        norm_classes_df[self.coi] = classes_df[self.coi]
 
         if self.sibling:
             print('Dataset comprises of {} Sibling Entries and {} out of {} total entries'.format(
                 norm_classes_df.loc[sib_list_df['Sibling_name']].sum(), 
-                norm_classes_df.loc['Ecklonia radiata'], 
+                norm_classes_df.loc[self.coi], 
                 norm_classes_df.sum()))
         return norm_classes_df, classes_df
     
@@ -183,7 +190,7 @@ class modify_annotation_set():
         for label, amount in norm_classes_df.items():
             print('Processed {} out of {}: {}'.format(counter, len(norm_classes_df), label), end='\r')
             remove_n = classes_df[label] - amount
-            csv_except_df = csv_file_df.loc[csv_file_df['label_name'] == label]
+            csv_except_df = csv_file_df.loc[csv_file_df[self.row_name] == label]
             drop_indices = np.random.choice(csv_except_df.index, remove_n, replace=False)
             csv_file_df = csv_file_df.drop(drop_indices)
             counter +=1
@@ -193,10 +200,11 @@ class modify_annotation_set():
             except:
                 print('{} all {} entries deleted'.format(label, remove_n))
             '''
-        print('Normalized Dataset size: {} with {} classes'.format(csv_file_df.pivot_table(index = ['label_name'], aggfunc ='size').sum(), len(csv_file_df.pivot_table(index = ['label_name'], aggfunc ='size'))))
+        print('Normalized Dataset size: {} with {} classes'.format(csv_file_df.pivot_table(index = [self.row_name], aggfunc ='size').sum(), len(csv_file_df.pivot_table(index = [self.row_name], aggfunc ='size'))))
         
         csv_file_df.reset_index(drop=True, inplace=True)
-        self.save_csv(csv_file_df, 'normalized_deploymeny_key')
+        #csv_name = self.coi + '_NMSC'
+        self.save_csv(csv_file_df, self.coi.replace(' ', '_')  + '_NMSC')
         return csv_file_df
 
     def save_csv(self, csv_file_df, description):
@@ -216,20 +224,24 @@ if __name__ == "__main__":
     here = os.path.dirname(os.path.abspath(__file__))
     #list_name = '/Annotation_Sets/Full_Annotation_List.csv'
     print('Loading CSV file, this may take a while.')
-    list_name = '/Annotation_Sets/Full_Annotation_List_NMSC.csv'
+    list_name = '/Annotation_Sets/720_Full_Annotation_List_NMSC.csv'
+    #list_name = '/Annotation_Sets/Full_Annotation_List.csv'
     csv_file_df= pd.read_csv(here + list_name, on_bad_lines='skip', low_memory=False) 
     
     print('Loaded {} entries with filename: {}'.format(len(csv_file_df.index), list_name))
 
     csv_file_df.columns = csv_file_df.columns.str.replace('[.]', '_', regex=True)
+    # Used for NMSC dataset
+    values = {"label_translated_name": 'Not of Interest'}
+    csv_file_df = csv_file_df.fillna(value=values)
 
     data = modify_annotation_set()
-    csv_file_df = csv_file_df.loc[csv_file_df['label_translated_name'] == 'Seagrass cover']
-    print(len(csv_file_df))
-    print(csv_file_df.point_media_deployment_campaign_key.value_counts())
-    #csv_file_df = data.delete_review(csv_file_df)
-    
-    #data.normalize_set(csv_file_df)
+    #csv_file_df = csv_file_df.loc[csv_file_df['label_translated_name'] == 'Seagrass cover']
+    print(csv_file_df.label_translated_name.value_counts())
+    csv_file_df = data.delete_review(csv_file_df)
+    print(csv_file_df.label_translated_name.value_counts())
+
+    data.normalize_set(csv_file_df)
     
     
     

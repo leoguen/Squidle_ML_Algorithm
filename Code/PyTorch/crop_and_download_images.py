@@ -19,16 +19,16 @@ class crop_download_images():
         if keep_og_size:
             structure_list=[            
             '/Original_images', 
-            '/Original_images/Ecklonia', 
+            '/Original_images/' + coi, 
             '/Original_images/Others',
             ]
         else:
             structure_list = [
                 '/'+str(bounding_box[0])+'_images', 
-                '/'+str(bounding_box[0])+'_images/Ecklonia', 
+                '/'+str(bounding_box[0])+'_images/' + coi, 
                 '/'+str(bounding_box[0])+'_images/Others',
                 '/'+str(bounding_box[0])+'_images/Padding',
-                '/'+str(bounding_box[0])+'_images/Padding/Ecklonia',
+                '/'+str(bounding_box[0])+'_images/Padding/'+coi,
                 '/'+str(bounding_box[0])+'_images/Padding/Others']
         for i in structure_list:
             crop_download_images.create_directory(save_path, i)
@@ -57,9 +57,14 @@ class crop_download_images():
                 df.to_csv(save_path + '/' + str(bounding_box[0])+'_images/'+ str(bounding_box[0]) +'_Saving_Problem.csv', index=False) 
         
             empty_prob_list_df = pd.DataFrame(empty_prob_list)
-            empty_prob_list_df.to_csv(save_path + '/' + str(bounding_box[0])+'_images/'+ str(bounding_box[0]) +'_Empty_Problem.csv', index=False) 
-            crop_prob_list = pd.DataFrame(crop_prob_list)
-            crop_prob_list.to_csv(save_path + '/' + str(bounding_box[0])+'_images/'+ str(bounding_box[0]) +'_Crop_Problem.csv', index=False) 
+            if keep_og_size:
+                empty_prob_list_df.to_csv(save_path + '/Empty_Problem.csv', index=False) 
+                crop_prob_list = pd.DataFrame(crop_prob_list)
+                crop_prob_list.to_csv(save_path +'/Crop_Problem.csv', index=False) 
+            else: 
+                empty_prob_list_df.to_csv(save_path + '/' + str(bounding_box[0])+'_images/'+ str(bounding_box[0]) +'_Empty_Problem.csv', index=False) 
+                crop_prob_list = pd.DataFrame(crop_prob_list)
+                crop_prob_list.to_csv(save_path + '/' + str(bounding_box[0])+'_images/'+ str(bounding_box[0]) +'_Crop_Problem.csv', index=False) 
         print('Problematic files have been saved for {}'.format(bounding_box))
 
     def get_crop_points(self, x, y, original_image, bounding_box):
@@ -79,8 +84,8 @@ class crop_download_images():
         return  int(x0), int(x1), int(y0), int(y1)
 
     def crop_image(self, save_path, csv_file_df, index, bounding_box, empty_prob_list, crop_prob_list):
-        if csv_file_df.label_name[index] == "Ecklonia radiata":
-            label = 'Ecklonia'
+        if csv_file_df.label_name[index] == loi:
+            label = coi
         else:
             label = 'Others'
         #create name for the cropped image
@@ -140,6 +145,11 @@ class crop_download_images():
 
 if __name__ == "__main__":
     keep_og_size=True
+    coi = 'Seagrass cover' #Ecklonia
+    loi = 'Seagrass cover' #Ecklonia radiata
+    #Macroalgal canopy cover
+    #Hard coral cover
+    #Seagrass cover
     download_list = [ 
     #[32,32],
     #[24,24],
@@ -176,19 +186,26 @@ if __name__ == "__main__":
     [976,976], 
     [1008,1008]
     ]
-    #download_list = [[336,336]]
+    download_list = [[336,336]]
     path_list = [
         ['NSW_Broughton','/Annotation_Sets/Test_sets/annotations-u45-leo_kelp_AI_test_broughton_is_NSW-leo_kelp_AI_test_broughton_is_25pts-8152-7652a9b48f0e3186fe5d-dataframe.csv'], 
         ['VIC_Discoverybay','/Annotation_Sets/Test_sets/annotations-u45-leo_kelp_AI_test_discoverybay_VIC_phylospora-leo_kelp_AI_test_db_phylospora_25pts-8149-7652a9b48f0e3186fe5d-dataframe.csv'],
         ['TAS_Lanterns','/Annotation_Sets/Test_sets/annotations-u45-leo_kelp_AI_test_lanterns_TAS-leo_kelp_AI_test_lanterns_25pts-8151-7652a9b48f0e3186fe5d-dataframe.csv'], 
         ['VIC_Prom','/Annotation_Sets/Test_sets/annotations-u45-leo_kelp_AI_test_prom_VIC-leo_kelp_AI_test_prom_25pts-8150-7652a9b48f0e3186fe5d-dataframe.csv'], 
         ['WA', '/Annotation_Sets/Test_sets/annotations-u45-leo_kelp_SWC_WA_AI_test-leo_kelp_AI_SWC_WA_test_25pts-8148-7652a9b48f0e3186fe5d-dataframe.csv']]
-    path_list = [['Not Used', '/Annotation_Sets/106704_normalized_deploymeny_key_list.csv']]
+    
+    path_list = [
+        ['Seagrass cover','Seagrass_Database' ,'/Annotation_Sets/14961_Seagrass_cover_NMSC_list.csv'], 
+        ['Hard coral cover','Hardcoral_Database' ,'/Annotation_Sets/167052_Hard_coral_cover_NMSC_list.csv'],
+        ['Macroalgal canopy cover','Macroalgal_Database' ,'/Annotation_Sets/407756_Macroalgal_canopy_cover_NMSC_list.csv']
+        ]
     for bounding_box in download_list:
-        for name, path in path_list:    
+        for name,database,path in path_list:    
+            coi = name
+            loi = name
             print(bounding_box)
             here = os.path.dirname(os.path.abspath(__file__))
-            save_path = '/pvol/Ecklonia_Testbase/' + name
+            save_path = '/pvol/' + database
             #save_path = '/pvol/Ecklonia_Database'
             list_name = path
 
