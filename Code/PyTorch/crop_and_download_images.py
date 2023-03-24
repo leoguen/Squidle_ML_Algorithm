@@ -54,7 +54,10 @@ class crop_download_images():
                 print('Problem with saving index {}'.format(index))
                 saving_prob_list.append([(index+2), csv_file_df.point_media_path_best[index]])
                 df = pd.DataFrame(saving_prob_list)
-                df.to_csv(save_path + '/' + str(bounding_box[0])+'_images/'+ str(bounding_box[0]) +'_Saving_Problem.csv', index=False) 
+                if keep_og_size:
+                    df.to_csv(save_path + '/Saving_Problem.csv', index=False) 
+                else:
+                    df.to_csv(save_path + '/' + str(bounding_box[0])+'_images/'+ str(bounding_box[0]) +'_Saving_Problem.csv', index=False) 
         
             empty_prob_list_df = pd.DataFrame(empty_prob_list)
             if keep_og_size:
@@ -195,7 +198,7 @@ if __name__ == "__main__":
         ['WA', '/Annotation_Sets/Test_sets/annotations-u45-leo_kelp_SWC_WA_AI_test-leo_kelp_AI_SWC_WA_test_25pts-8148-7652a9b48f0e3186fe5d-dataframe.csv']]
     
     path_list = [
-        ['Seagrass cover','Seagrass_Database' ,'/Annotation_Sets/14961_Seagrass_cover_NMSC_list.csv'], 
+        #['Seagrass cover','Seagrass_Database' ,'/Annotation_Sets/14961_Seagrass_cover_NMSC_list.csv'], 
         ['Hard coral cover','Hardcoral_Database' ,'/Annotation_Sets/167052_Hard_coral_cover_NMSC_list.csv'],
         ['Macroalgal canopy cover','Macroalgal_Database' ,'/Annotation_Sets/407756_Macroalgal_canopy_cover_NMSC_list.csv']
         ]

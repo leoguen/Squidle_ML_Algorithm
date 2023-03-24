@@ -47,7 +47,7 @@ class CSV_Dataset(Dataset):
         self.csv_data_path = csv_data_path
         self.inception = inception
         self.csv_file_df = pd.read_csv(csv_data_path)
-        self.class_map = {"Ecklonia" : 1, "Others": 0}
+        self.class_map = {one_word_label : 1, "Others": 0}
         compare_dir_csv(self, csv_data_path)
         # Add unpadded and padded entries to data
 
@@ -58,8 +58,12 @@ class CSV_Dataset(Dataset):
     def __getitem__(self, idx):
         img_path = str(re.sub(r'(.*)/.*', '\\1', self.csv_data_path)) + '/All_Images/' +self.csv_file_df.file_name.iloc[idx]
         class_id = torch.tensor(0)
-        if self.csv_file_df.label_name.iloc[idx] == 'Ecklonia radiata': 
-            class_id = torch.tensor(1)
+        if label_name == 'Ecklonia radiata':
+            if self.csv_file_df.label_name.iloc[idx] == label_name: 
+                class_id = torch.tensor(1)
+        else: #If translated labels are used
+            if self.csv_file_df.label_translated_name.iloc[idx] == label_name: 
+                class_id = torch.tensor(1) 
         img = cv2.imread(img_path)
         #class_id = self.class_map[class_name]
         img = Image.fromarray(img)
@@ -226,12 +230,12 @@ class KelpClassifier(pl.LightningModule):
 
     def train_dataloader(self):
         train_dataloader = DataLoader(training_set, batch_size=self.batch_size, num_workers=os.cpu_count(),shuffle=False)
-        display_dataloader(train_dataloader, 'train_dataloader')
+        #display_dataloader(train_dataloader, 'train_dataloader')
         return train_dataloader
     
     def val_dataloader(self):
         val_dataloader = DataLoader(validation_set, batch_size=self.batch_size, num_workers=os.cpu_count(),shuffle=False)
-        display_dataloader(val_dataloader, 'val_dataloader')
+        #display_dataloader(val_dataloader, 'val_dataloader')
         return val_dataloader
         #return DataLoader(validation_set, batch_size=self.batch_size, num_workers=os.cpu_count(),shuffle=False)
     
@@ -299,8 +303,12 @@ class KelpClassifier(pl.LightningModule):
         image_to_tb(self, batch, batch_idx, 'train')
     
     def test_step(self, batch, batch_idx):
-        x, y, x_crop, y_crop = batch
-        #x, y = batch
+        try:
+            x, y, x_crop, y_crop = batch
+        except: 
+            x, y = batch
+            x_crop = 0.5 #! Added for GeneralDataset 
+            y_crop = 0.5 #!
         metrics, loss, f1_score,top_eck_p, top_class, res_y, top_p = analyze_pred(self,x, y, x_crop, y_crop)
         #metrics=[loss.item(), accuracy.item(), TP, TN, FP, FN]
         for i, metric in enumerate(metrics):
@@ -551,21 +559,21 @@ def get_args():
 
     parser.add_argument('--eck_test_perc', metavar='eck_tp', type=float, help='The percentage of ecklonia examples in the test set', default=0.5)
 
-    parser.add_argument('--limit_train_batches', metavar='ltrb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.5) #!
+    parser.add_argument('--limit_train_batches', metavar='ltrb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=1.0)
 
-    parser.add_argument('--limit_val_batches', metavar='lvb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.5) #!
+    parser.add_argument('--limit_val_batches', metavar='lvb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=1.0)
 
-    parser.add_argument('--limit_test_batches', metavar='lteb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=1.0) #!
+    parser.add_argument('--limit_test_batches', metavar='lteb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=1.0)
 
-    parser.add_argument('--epochs', metavar='epochs', type=int, help='The number of epcohs the algorithm trains', default=3) #! 
+    parser.add_argument('--epochs', metavar='epochs', type=int, help='The number of epcohs the algorithm trains', default=15) 
 
     parser.add_argument('--log_path', metavar='log_path', type=str, help='The path where the logger files are saved', default='/pvol/logs/')
 
     parser.add_argument('--log_name', metavar='log_name', type=str, help='Name of the experiment.', default='unnamed')
 
-    parser.add_argument('--img_path', metavar='img_path', type=str, help='Path to the database of images', default='/pvol/Ecklonia_Database/')
+    parser.add_argument('--img_path', metavar='img_path', type=str, help='Path to the database of images', default='/pvol/Ecklonia_Database/') #/pvol/Seagrass_Database/
 
-    parser.add_argument('--csv_path', metavar='csv_path', type=str, help='Path to the csv file describing the images', default='/pvol/Ecklonia_Database/Original_images/106704_normalized_deployment_key_list.csv')
+    parser.add_argument('--csv_path', metavar='csv_path', type=str, help='Path to the csv file describing the images', default='/pvol/Ecklonia_Database/Original_images/106704_normalized_deployment_key_list.csv')#/pvol/Seagrass_Database/Original_images/14961_Seagrass_cover_NMSC_list.csv
 
     parser.add_argument('--n_trials', metavar='n_trials', type=int, help='Number of trials that Optuna runs for', default=1) #!
 
@@ -577,19 +585,24 @@ def get_args():
 
     parser.add_argument('--backbone', metavar='backbone', type=str, help='Name of the model which should be used for transfer learning', default='inception_v3')
 
-    parser.add_argument('--real_test',  help='If True: a seperate dataset is used, if False dataset is extracted out of training set. ', action='store_false') #!   
+    parser.add_argument('--real_test',  help='If True: a seperate dataset is used, if False dataset is extracted out of training set. ', action='store_true')  
 
     parser.add_argument('--test_img_path', metavar='test_img_path', type=str, help='Path to the database of test images', default='/pvol/Ecklonia_Testbase/NSW_Broughton/')
 
     parser.add_argument('--img_size', metavar='img_size', type=int, help=
     'Defines the size of the used image.', default=299)
     
-    parser.add_argument('--crop_perc', metavar='crop_perc', type=int, help= 'Defines percentage that is used to crop the image.', default=0.1) #!
+    parser.add_argument('--crop_perc', metavar='crop_perc', type=int, help= 'Defines percentage that is used to crop the image.', default=0.0)
+
+    parser.add_argument('--batch_size', metavar='batch_size', type=int, help= 'Defines batch_size that is used to train algorithm.', default=128) #!
+
+    parser.add_argument('--label_name', metavar='label_name', type=str, help='Name of the label used in the csv file', default='Ecklonia radiata') #Seagrass cover
+    
     
 
     args =parser.parse_args()
     no_filters = 0
-    return args.percent_valid_examples,args.percent_test_examples, args.eck_test_perc,args.limit_train_batches,args.limit_val_batches,args.limit_test_batches,args.epochs,args.log_path,args.log_name,args.img_path, args.n_trials,args.mlp_opt, args.mlp_perc, args.mlp_path,args.backbone, no_filters, args.real_test, args.test_img_path, args.img_size, args.csv_path, args.crop_perc
+    return args.percent_valid_examples,args.percent_test_examples, args.eck_test_perc,args.limit_train_batches,args.limit_val_batches,args.limit_test_batches,args.epochs,args.log_path,args.log_name,args.img_path, args.n_trials,args.mlp_opt, args.mlp_perc, args.mlp_path,args.backbone, no_filters, args.real_test, args.test_img_path, args.img_size, args.csv_path, args.crop_perc, args.batch_size, args.label_name
 
 def log_to_graph(self, value, var, name ,global_step):
     self.logger.experiment.add_scalars(var, {name: value},global_step)
@@ -613,18 +626,18 @@ def image_to_tb(self, batch, batch_idx, step_name):
             tensorboard.add_image('Other images ' +step_name, others_grid, path_label)
             try: 
                 ecklonia_grid = torchvision.utils.make_grid(ecklonia_batch_images)
-                tensorboard.add_image('Ecklonia images '+step_name, ecklonia_grid, path_label)
+                tensorboard.add_image(one_word_label+' images '+step_name, ecklonia_grid, path_label)
             except:
-                print('No Ecklonia entries to post to Tensorboard.')
+                print('No '+one_word_label+' entries to post to Tensorboard.')
             tensorboard.close()
         else: 
             others_grid = torchvision.utils.make_grid(others_batch_images)
             tensorboard.add_image('Other images ' +step_name, others_grid, batch_idx)
             try: 
                 ecklonia_grid = torchvision.utils.make_grid(ecklonia_batch_images)
-                tensorboard.add_image('Ecklonia images '+step_name, ecklonia_grid, batch_idx)
+                tensorboard.add_image(one_word_label + ' images '+step_name, ecklonia_grid, batch_idx)
             except:
-                print('No Ecklonia entries to post to Tensorboard.')
+                print('No '+ one_word_label+' entries to post to Tensorboard.')
             tensorboard.close()
         #tensorboard.add_image(batch[0])
     return batch_idx
@@ -662,16 +675,39 @@ def get_test_dataset(img_size, PERCENT_TEST_EXAMPLES, ECK_TEST_PERC):
     return both_data
 
 def display_dataloader(data_loader, name):
-    #data_loader 
     counter = [0,0]
+    
+    #Used for General Dataset 
+    '''
+    #print(data_loader.dataset.data[:][1])
+    for entry in data_loader.dataset.data:
+        label = entry[1]
+        if label == one_word_label: 
+            counter[1] +=1
+        else:
+            counter[0] +=1
+    print('The {} comprises of: {} {} & Others {} \n'.format(name, label_name, counter[1], counter[0]))
+    '''
+    #Used for CSV Dataset
+    
     for idx in data_loader.dataset.indices:
-        if data_loader.dataset.dataset.csv_file_df.label_name.iloc[idx] == 'Ecklonia radiata':
-            #print('Eck Label ' + data_loader.dataset.dataset.csv_file_df.label_name[idx])
-            counter[1] += 1 
-        else: 
-            #print('Others label '+ (data_loader.dataset.dataset.csv_file_df.label_name[idx]))
-            counter[0] += 1
-    print('The {} comprises of: Ecklonia {} & Others {} \n'.format(name, counter[1], counter[0]))
+        if label_name == 'Ecklonia radiata':
+            if data_loader.dataset.dataset.csv_file_df.label_name.iloc[idx] == label_name:
+                #print('Eck Label ' + data_loader.dataset.dataset.csv_file_df.label_name[idx])
+                counter[1] += 1 
+            else: 
+                #print('Others label '+ (data_loader.dataset.dataset.csv_file_df.label_name[idx]))
+                counter[0] += 1
+        else: #Used for translated label name
+            if data_loader.dataset.dataset.csv_file_df.label_translated_name.iloc[idx] == label_name:
+                #print('Eck Label ' + data_loader.dataset.dataset.csv_file_df.label_name[idx])
+                counter[1] += 1 
+            else: 
+                #print('Others label '+ (data_loader.dataset.dataset.csv_file_df.label_name[idx]))
+                counter[0] += 1
+    print('The {} comprises of: {} {} & Others {} \n'.format(name, label_name, counter[1], counter[0]))
+    
+    
     '''
     counter = [[0,0],[0,0]] # First [] is Others, then sub [] is unpadded, padded
     pad_idx = 0
@@ -693,7 +729,7 @@ def objective(trial: optuna.trial.Trial) -> float:
     # Optuna Params
     ###############
     #dropout = trial.suggest_float("dropout", 0.2, 0.5)
-    BATCHSIZE = 128#trial.suggest_int("batchsize", 8, 128)
+    #trial.suggest_int("batchsize", 8, 128)
     '''
     LEARNING_RATE = trial.suggest_float(
         "learning_rate_init", 1e-8, 1e-1, log=True
@@ -714,15 +750,14 @@ def objective(trial: optuna.trial.Trial) -> float:
     
     #global img_size
     #img_size = trial.suggest_int("img_size", 16, 2048, step=16)
-    
+
     ##############
     # Data Loading
     ##############
     inception = False
     if backbone_name == 'inception_v3': 
         inception = True
-        TEST_BATCHSIZE = BATCHSIZE
-    else: TEST_BATCHSIZE = 1 # Batchsize scaled down to one because of diff image sizes 
+
     if real_test:
         test_list = []
     else: 
@@ -759,13 +794,13 @@ def objective(trial: optuna.trial.Trial) -> float:
         precision=16,
         log_every_n_steps=50,
         #auto_scale_batch_size="power",
-        auto_lr_find=True,
+        auto_lr_find=False, #!
     )
     
     model = KelpClassifier(backbone_name, 
                             no_filters, 
                             #LEARNING_RATE, 
-                            batch_size = 128, 
+                            batch_size = batch_size, 
                             trial = trial, 
                             #monitor ='f1_score', 
                             trainer= trainer,  
@@ -784,7 +819,6 @@ def objective(trial: optuna.trial.Trial) -> float:
     hyperparameters = dict(
             optimizer_name = optimizer_name,
             learning_rate=model.hparams.learning_rate, #LEARNING_RATE, 
-            image_size = img_size, 
             backbone = backbone_name,
             #batchsize = model.batch_size,
             #rvf_perc = rvf_perc, 
@@ -795,7 +829,10 @@ def objective(trial: optuna.trial.Trial) -> float:
             #lrhue_perc=rhue_perc, 
             threshold = threshold,
             f1_score = trainer.callback_metrics["f1_score"].item())
-
+    if crop_perc != 0:
+        hyperparameters['crop_perc']=crop_perc
+    else:
+        hyperparameters['image_size']= img_size
     if MLP_OPT:
         hyperparameters['mlp_percentage']=MLP_PERC 
     if not(real_test):
@@ -814,7 +851,7 @@ def objective(trial: optuna.trial.Trial) -> float:
     f1_score_end = trainer.callback_metrics["f1_score"].item()
 
     if real_test:
-        
+        #Used for CSV Dataset
         path_list = [
             '/pvol/Ecklonia_Testbase/WA/Original_images/annotations-u45-leo_kelp_SWC_WA_AI_test-leo_kelp_AI_SWC_WA_test_25pts-8148-7652a9b48f0e3186fe5d-dataframe.csv', 
             '/pvol/Ecklonia_Testbase/NSW_Broughton/Original_images/annotations-u45-leo_kelp_AI_test_broughton_is_NSW-leo_kelp_AI_test_broughton_is_25pts-8152-7652a9b48f0e3186fe5d-dataframe.csv', 
@@ -822,6 +859,7 @@ def objective(trial: optuna.trial.Trial) -> float:
             '/pvol/Ecklonia_Testbase/VIC_Discoverybay/Original_images/annotations-u45-leo_kelp_AI_test_discoverybay_VIC_phylospora-leo_kelp_AI_test_db_phylospora_25pts-8149-7652a9b48f0e3186fe5d-dataframe.csv', 
             '/pvol/Ecklonia_Testbase/TAS_Lanterns/Original_images/annotations-u45-leo_kelp_AI_test_lanterns_TAS-leo_kelp_AI_test_lanterns_25pts-8151-7652a9b48f0e3186fe5d-dataframe.csv']
         '''
+        #Used for Generaldataset
         path_list = [
             '/pvol/Ecklonia_Testbase/WA/', 
             '/pvol/Ecklonia_Testbase/NSW_Broughton/', 
@@ -833,13 +871,15 @@ def objective(trial: optuna.trial.Trial) -> float:
             global path_label 
             #path_label = re.sub(".*/(.*)/", "\\1", path)
             path_label = idx
-            test_set = CSV_Dataset(img_size, test_list, test = True, inception=inception, csv_data_path= path)
-            test_loader = torch.utils.data.DataLoader(test_set, batch_size=TEST_BATCHSIZE, shuffle=False, num_workers=os.cpu_count())
+            #test_set = CSV_Dataset(img_size, test_list, test = True, inception=inception, csv_data_path= path)
+            test_set = GeneralDataset(img_size, test_list, test=True, inception=inception, test_img_path=path)
+            # Just looks at one dataset
+            test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=os.cpu_count())
             #display_dataloader(test_loader, 'Test Loader'+str(path_label))
             trainer.test(ckpt_path='best', dataloaders=test_loader)
     else: 
         test_set = GeneralDataset(img_size, test_list, test = True, inception=inception,test_img_path = test_img_path)
-        test_loader = torch.utils.data.DataLoader(test_set, batch_size=TEST_BATCHSIZE, shuffle=False, num_workers=os.cpu_count())
+        test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=True, num_workers=os.cpu_count())
         #display_dataloader(test_loader, 'Test Loader Generaldataset')
         trainer.test(ckpt_path='best', dataloaders=test_loader)
     
@@ -848,16 +888,31 @@ def objective(trial: optuna.trial.Trial) -> float:
     return f1_score_end
 
 if __name__ == '__main__':
-    PERCENT_VALID_EXAMPLES, PERCENT_TEST_EXAMPLES, ECK_TEST_PERC, LIMIT_TRAIN_BATCHES, LIMIT_VAL_BATCHES, LIMIT_TEST_BATCHES, EPOCHS, LOGGER_PATH, LOG_NAME, IMG_PATH, N_TRIALS, MLP_OPT, MLP_PERC, MLP_PATH, backbone_name, no_filters, real_test, test_img_path, img_size, csv_path, crop_perc = get_args()
+    PERCENT_VALID_EXAMPLES, PERCENT_TEST_EXAMPLES, ECK_TEST_PERC, LIMIT_TRAIN_BATCHES, LIMIT_VAL_BATCHES, LIMIT_TEST_BATCHES, EPOCHS, LOGGER_PATH, LOG_NAME, IMG_PATH, N_TRIALS, MLP_OPT, MLP_PERC, MLP_PATH, backbone_name, no_filters, real_test, test_img_path, img_size, csv_path, crop_perc, batch_size, label_name = get_args()
+
+    one_word_label = 'One_Word_Label_Not_Defined'
+    if label_name == 'Ecklonia radiata':
+        one_word_label = 'Ecklonia'
+    elif label_name == 'Seagrass cover':
+        one_word_label = 'Seagrass'
+    elif label_name == 'Hard coral cover':
+        one_word_label = 'Hardcoral'
+    elif label_name == 'Macroalgal canopy cover':
+        one_word_label = 'Macroalgal'
     
+
     test_log_count = 0 # Needed to display all five datasets
 
     if MLP_OPT: print('MLP is activated')
     # Used for grid search
-    size_array = [299]#, 1440 ,1760]
-    for size in size_array:
-    #for size in range(2048,16,-32): #!
-        img_size = size #!
+    size_array = [img_size]#, 1440 ,1760]
+    
+    # Used for precent test
+    for size in range(0,100,5): #!
+        if size == 0: size =1
+        crop_perc = size/100 #!
+    # Used for fixed bounding_box
+    #for size in size_array:
         study = optuna.create_study(direction="maximize", pruner=optuna.pruners.MedianPruner())
         study.optimize(objective, n_trials=N_TRIALS, timeout=None)
 
