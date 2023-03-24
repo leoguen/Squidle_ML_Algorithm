@@ -41,9 +41,9 @@ from os import listdir
 
 writer = SummaryWriter()
 
-
 class CSV_Dataset(Dataset):
     def __init__(self, img_size, test_list, test, inception, csv_data_path):
+        self.test_indicator = test
         self.csv_data_path = csv_data_path
         self.inception = inception
         self.csv_file_df = pd.read_csv(csv_data_path)
@@ -81,20 +81,27 @@ class CSV_Dataset(Dataset):
         x_crop_size, y_crop_size = cropped_img.size
         x_crop =  x_perc
         y_crop =  y_perc
-
         if self.inception:
-            train_transforms = transforms.Compose([
-            transforms.Resize((299, 299)),
-            transforms.RandomVerticalFlip(p=0.5),
-            transforms.RandomHorizontalFlip(p=0.5),
-            transforms.RandomAutocontrast(p=0.5),
-            transforms.RandomEqualize(p=0.4),
-            transforms.ColorJitter(brightness=0.5, hue=0.2),
-            transforms.ToTensor(), # ToTensor : [0, 255] -> [0, 1]
-            transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                std=[0.229, 0.224, 0.225]),
-            
-            ])
+            if self.test_indicator: 
+                train_transforms = transforms.Compose([
+                transforms.Resize((299, 299)),
+                transforms.ToTensor(), # ToTensor : [0, 255] -> [0, 1]
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406],
+                    std=[0.229, 0.224, 0.225]),
+                ])
+            else:
+                train_transforms = transforms.Compose([
+                transforms.Resize((299, 299)),
+                transforms.RandomVerticalFlip(p=0.5),
+                transforms.RandomHorizontalFlip(p=0.5),
+                transforms.RandomAutocontrast(p=0.5),
+                #transforms.RandomEqualize(p=0.4),
+                transforms.ColorJitter(brightness=0.5, hue=0.2),
+                transforms.ToTensor(), # ToTensor : [0, 255] -> [0, 1]
+                transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                    std=[0.229, 0.224, 0.225]),
+                ])
         else:
             train_transforms = transforms.Compose([
             transforms.ToTensor(), # ToTensor : [0, 255] -> [0, 1]
@@ -242,12 +249,12 @@ class KelpClassifier(pl.LightningModule):
                 return
             
             self._trial.report(current_score, step=epoch)
-            if self._trial.should_prune():
-                message = "Trial was pruned at epoch {}.".format(epoch)
+            #if self._trial.should_prune():
+                #message = "Trial was pruned at epoch {}.".format(epoch)
                 # Remove not successful log
                 #!
                 #shutil.rmtree(self.logger.log_dir, ignore_errors=True)
-                raise optuna.TrialPruned(message)
+                #raise optuna.TrialPruned(message) #!
 
     def forward(self, x, x_crop, y_crop):
         x_mlp = x
@@ -289,7 +296,7 @@ class KelpClassifier(pl.LightningModule):
         if not(self.trainer.sanity_checking):
             self.log('f1_score', f1_score, on_step=False, on_epoch=True)
         #return f1_score
-        image_to_tb(self, batch, batch_idx)
+        image_to_tb(self, batch, batch_idx, 'train')
     
     def test_step(self, batch, batch_idx):
         x, y, x_crop, y_crop = batch
@@ -301,6 +308,7 @@ class KelpClassifier(pl.LightningModule):
         for single_prob in top_eck_p:
             self.test_eck_p.append(single_prob)
         accuracy, precision, recall, f1_score = get_acc_prec_rec_f1(self, metric = self.test_losses)
+        image_to_tb(self, batch, batch_idx, 'test')
         #self.log('f1_score', f1_score)
         #return f1_score
     
@@ -328,6 +336,7 @@ class KelpClassifier(pl.LightningModule):
             for i, var in enumerate(metric):
                 log_to_graph(self, metric_list[i], var, name, self.global_step)
         self.valid_losses = [[],[],[],[],[],[]]  # reset for next epoch
+    
     def on_test_epoch_start(self):
         self.roc_curve = [[],[],[],[]]
 
@@ -374,7 +383,6 @@ class KelpClassifier(pl.LightningModule):
     def configure_optimizers(self):
         return getattr(torch.optim, optimizer_name)(self.parameters(), lr=self.hparams.learning_rate)
         #return torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
-
 
 def get_crop_points(self, x, y, original_image, img_size):
     x_img, y_img = original_image.size
@@ -543,13 +551,13 @@ def get_args():
 
     parser.add_argument('--eck_test_perc', metavar='eck_tp', type=float, help='The percentage of ecklonia examples in the test set', default=0.5)
 
-    parser.add_argument('--limit_train_batches', metavar='ltrb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=1.0) #!
+    parser.add_argument('--limit_train_batches', metavar='ltrb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.5) #!
 
-    parser.add_argument('--limit_val_batches', metavar='lvb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=1.0) #!
+    parser.add_argument('--limit_val_batches', metavar='lvb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.5) #!
 
-    parser.add_argument('--limit_test_batches', metavar='lteb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=1.0)
+    parser.add_argument('--limit_test_batches', metavar='lteb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=1.0) #!
 
-    parser.add_argument('--epochs', metavar='epochs', type=int, help='The number of epcohs the algorithm trains', default=15) 
+    parser.add_argument('--epochs', metavar='epochs', type=int, help='The number of epcohs the algorithm trains', default=3) #! 
 
     parser.add_argument('--log_path', metavar='log_path', type=str, help='The path where the logger files are saved', default='/pvol/logs/')
 
@@ -559,7 +567,7 @@ def get_args():
 
     parser.add_argument('--csv_path', metavar='csv_path', type=str, help='Path to the csv file describing the images', default='/pvol/Ecklonia_Database/Original_images/106704_normalized_deployment_key_list.csv')
 
-    parser.add_argument('--n_trials', metavar='n_trials', type=int, help='Number of trials that Optuna runs for', default=None)
+    parser.add_argument('--n_trials', metavar='n_trials', type=int, help='Number of trials that Optuna runs for', default=1) #!
 
     parser.add_argument('--mlp_opt',  help='Defines whether the MLP is activated or not', action='store_true')
     
@@ -569,14 +577,14 @@ def get_args():
 
     parser.add_argument('--backbone', metavar='backbone', type=str, help='Name of the model which should be used for transfer learning', default='inception_v3')
 
-    parser.add_argument('--real_test',  help='If True: a seperate dataset is used, if False dataset is extracted out of training set. ', action='store_true')   
+    parser.add_argument('--real_test',  help='If True: a seperate dataset is used, if False dataset is extracted out of training set. ', action='store_false') #!   
 
     parser.add_argument('--test_img_path', metavar='test_img_path', type=str, help='Path to the database of test images', default='/pvol/Ecklonia_Testbase/NSW_Broughton/')
 
     parser.add_argument('--img_size', metavar='img_size', type=int, help=
     'Defines the size of the used image.', default=299)
     
-    parser.add_argument('--crop_perc', metavar='crop_perc', type=int, help= 'Defines percentage that is used to crop the image.', default=0.0)
+    parser.add_argument('--crop_perc', metavar='crop_perc', type=int, help= 'Defines percentage that is used to crop the image.', default=0.1) #!
     
 
     args =parser.parse_args()
@@ -586,19 +594,38 @@ def get_args():
 def log_to_graph(self, value, var, name ,global_step):
     self.logger.experiment.add_scalars(var, {name: value},global_step)
 
-def image_to_tb(self, batch, batch_idx):
+def image_to_tb(self, batch, batch_idx, step_name):
+    global path_label
     if batch_idx == 0:
         tensorboard = self.logger.experiment
         others_batch_images = []
         ecklonia_batch_images = []
         for index, image in enumerate(batch[0]):
+            image = transforms.Normalize(
+                mean=[-0.485/0.229, -0.456/0.224, -0.406/0.225],
+                std=[1/0.229, 1/0.224, 1/0.225])(image)
+            #unnormalize = T.Normalize((-mean / std).tolist(), (1.0 / std).tolist())
             if batch[1][index] == 0: others_batch_images.append(image) 
             else: ecklonia_batch_images.append(image)
-        others_grid = torchvision.utils.make_grid(others_batch_images)
-        ecklonia_grid = torchvision.utils.make_grid(ecklonia_batch_images)
-        tensorboard.add_image('Ecklonia images', ecklonia_grid, batch_idx)
-        tensorboard.add_image('Other images', others_grid, batch_idx)
-        tensorboard.close()
+        
+        if step_name == 'test':
+            others_grid = torchvision.utils.make_grid(others_batch_images)
+            tensorboard.add_image('Other images ' +step_name, others_grid, path_label)
+            try: 
+                ecklonia_grid = torchvision.utils.make_grid(ecklonia_batch_images)
+                tensorboard.add_image('Ecklonia images '+step_name, ecklonia_grid, path_label)
+            except:
+                print('No Ecklonia entries to post to Tensorboard.')
+            tensorboard.close()
+        else: 
+            others_grid = torchvision.utils.make_grid(others_batch_images)
+            tensorboard.add_image('Other images ' +step_name, others_grid, batch_idx)
+            try: 
+                ecklonia_grid = torchvision.utils.make_grid(ecklonia_batch_images)
+                tensorboard.add_image('Ecklonia images '+step_name, ecklonia_grid, batch_idx)
+            except:
+                print('No Ecklonia entries to post to Tensorboard.')
+            tensorboard.close()
         #tensorboard.add_image(batch[0])
     return batch_idx
 
@@ -659,13 +686,14 @@ def display_dataloader(data_loader, name):
     print('The Test-Dataset comprises of: \nUniform Ecklonia {}\nUniform Others {} \nPadded Ecklonia {}\nPadded Others {}'.format(counter[1][0], counter[0][0], counter[1][1], counter[0][1]))
     #print(test_loader.dataset.data[1][1])
 '''
+
 def objective(trial: optuna.trial.Trial) -> float:
 
     ###############
     # Optuna Params
     ###############
     #dropout = trial.suggest_float("dropout", 0.2, 0.5)
-    BATCHSIZE = 64#trial.suggest_int("batchsize", 8, 128)
+    BATCHSIZE = 128#trial.suggest_int("batchsize", 8, 128)
     '''
     LEARNING_RATE = trial.suggest_float(
         "learning_rate_init", 1e-8, 1e-1, log=True
@@ -674,7 +702,7 @@ def objective(trial: optuna.trial.Trial) -> float:
     #LEARNING_RATE = 0.0000050000
     global optimizer_name
     #optimizer_name = trial.suggest_categorical("optimizer", ['Adam', 'Adagrad', 'Adadelta', 'Adamax', 'AdamW', 'ASGD', 'NAdam', 'RAdam', 'RMSprop', 'Rprop', 'SGD'])
-    optimizer_name = 'SGD'
+    optimizer_name = 'Adam'
     global rvf_perc, rhf_perc, rauto_perc, requa_perc, rbright_perc, rhue_perc
     if MLP_OPT:
         global MLP_PERC 
@@ -710,7 +738,6 @@ def objective(trial: optuna.trial.Trial) -> float:
     
     #val_loader = torch.utils.data.DataLoader(validation_set, BATCHSIZE, shuffle=False, num_workers=os.cpu_count())
 
-
     acc_val = 'cpu'
     if torch.cuda.is_available(): acc_val = 'gpu'
     
@@ -738,7 +765,7 @@ def objective(trial: optuna.trial.Trial) -> float:
     model = KelpClassifier(backbone_name, 
                             no_filters, 
                             #LEARNING_RATE, 
-                            batch_size = 32, 
+                            batch_size = 128, 
                             trial = trial, 
                             #monitor ='f1_score', 
                             trainer= trainer,  
@@ -780,8 +807,8 @@ def objective(trial: optuna.trial.Trial) -> float:
 
     
     # Handle pruning based on the intermediate value.
-    if trial.should_prune():
-        raise optuna.TrialPruned()
+    #if trial.should_prune(): #!
+        #raise optuna.TrialPruned()
     
     # value copied here so that it is not influenced by different testing options
     f1_score_end = trainer.callback_metrics["f1_score"].item()
@@ -827,7 +854,7 @@ if __name__ == '__main__':
 
     if MLP_OPT: print('MLP is activated')
     # Used for grid search
-    size_array = [416]#, 1440 ,1760]
+    size_array = [299]#, 1440 ,1760]
     for size in size_array:
     #for size in range(2048,16,-32): #!
         img_size = size #!
