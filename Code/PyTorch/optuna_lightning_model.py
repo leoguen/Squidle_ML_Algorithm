@@ -787,7 +787,7 @@ def objective(trial: optuna.trial.Trial) -> float:
         enable_checkpointing=True,
         max_epochs=EPOCHS,
         accelerator=acc_val,
-        callbacks=[EarlyStopping(monitor="f1_score", mode="max")],
+        #callbacks=[EarlyStopping(monitor="f1_score", mode="max")],
         limit_train_batches=LIMIT_TRAIN_BATCHES,
         limit_val_batches=LIMIT_VAL_BATCHES,
         limit_test_batches=LIMIT_TEST_BATCHES,
