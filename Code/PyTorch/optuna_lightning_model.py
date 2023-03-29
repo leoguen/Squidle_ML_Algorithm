@@ -364,6 +364,17 @@ class KelpClassifier(pl.LightningModule):
                 
                 self.logger.experiment.add_scalars('test_'+var, {name: metric_list[i]},path_label)
         
+        #! self.test has TP on [2], TN on [3], FP on [4], FN on [5]
+        '''
+        table = f"""
+            | Pred/True | Ecklonia  | Others  |
+            |----------|-----------|-----------|
+            | Ecklonia    | {np.sum(self.test_losses[2])} | {np.sum(self.test_losses[4])} |
+            | Others    | {np.sum(self.test_losses[5])} | {np.sum(self.test_losses[3])} |
+        """
+        table = '\n'.join(l.strip() for l in table.splitlines())
+        self.logger.add_text("Confusion Matrix Test", table, path_label)
+        '''
         # Add ROC curve
         #create_roc_curve(self)
         
@@ -482,10 +493,10 @@ def get_pred_histogram(self, test_eck_p):
     return test_pred_hist
 
 def get_acc_prec_rec_f1(self, metric):
-    TP = np.mean(metric[2]) 
-    TN = np.mean(metric[3]) 
-    FP = np.mean(metric[4]) 
-    FN = np.mean(metric[5])
+    TP = np.sum(metric[2]) 
+    TN = np.sum(metric[3]) 
+    FP = np.sum(metric[4]) 
+    FN = np.sum(metric[5])
     
     precision = 0
     recall = 0
@@ -559,13 +570,13 @@ def get_args():
 
     parser.add_argument('--eck_test_perc', metavar='eck_tp', type=float, help='The percentage of ecklonia examples in the test set', default=0.5)
 
-    parser.add_argument('--limit_train_batches', metavar='ltrb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=1.0)
+    parser.add_argument('--limit_train_batches', metavar='ltrb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.2)
 
-    parser.add_argument('--limit_val_batches', metavar='lvb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=1.0)
+    parser.add_argument('--limit_val_batches', metavar='lvb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.2)
 
     parser.add_argument('--limit_test_batches', metavar='lteb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=1.0)
 
-    parser.add_argument('--epochs', metavar='epochs', type=int, help='The number of epcohs the algorithm trains', default=15) 
+    parser.add_argument('--epochs', metavar='epochs', type=int, help='The number of epcohs the algorithm trains', default=1) #! 
 
     parser.add_argument('--log_path', metavar='log_path', type=str, help='The path where the logger files are saved', default='/pvol/logs/')
 
@@ -585,7 +596,7 @@ def get_args():
 
     parser.add_argument('--backbone', metavar='backbone', type=str, help='Name of the model which should be used for transfer learning', default='inception_v3')
 
-    parser.add_argument('--real_test',  help='If True: a seperate dataset is used, if False dataset is extracted out of training set. ', action='store_true')  
+    parser.add_argument('--real_test',  help='If True: a seperate dataset is used, if False dataset is extracted out of training set. ', action='store_false') #!  
 
     parser.add_argument('--test_img_path', metavar='test_img_path', type=str, help='Path to the database of test images', default='/pvol/Ecklonia_Testbase/NSW_Broughton/')
 
@@ -594,7 +605,7 @@ def get_args():
     
     parser.add_argument('--crop_perc', metavar='crop_perc', type=int, help= 'Defines percentage that is used to crop the image.', default=0.0)
 
-    parser.add_argument('--batch_size', metavar='batch_size', type=int, help= 'Defines batch_size that is used to train algorithm.', default=128) #!
+    parser.add_argument('--batch_size', metavar='batch_size', type=int, help= 'Defines batch_size that is used to train algorithm.', default=32) #!
 
     parser.add_argument('--label_name', metavar='label_name', type=str, help='Name of the label used in the csv file', default='Ecklonia radiata') #Seagrass cover
     
@@ -852,6 +863,7 @@ def objective(trial: optuna.trial.Trial) -> float:
 
     if real_test:
         #Used for CSV Dataset
+        
         path_list = [
             '/pvol/Ecklonia_Testbase/WA/Original_images/annotations-u45-leo_kelp_SWC_WA_AI_test-leo_kelp_AI_SWC_WA_test_25pts-8148-7652a9b48f0e3186fe5d-dataframe.csv', 
             '/pvol/Ecklonia_Testbase/NSW_Broughton/Original_images/annotations-u45-leo_kelp_AI_test_broughton_is_NSW-leo_kelp_AI_test_broughton_is_25pts-8152-7652a9b48f0e3186fe5d-dataframe.csv', 
@@ -871,8 +883,8 @@ def objective(trial: optuna.trial.Trial) -> float:
             global path_label 
             #path_label = re.sub(".*/(.*)/", "\\1", path)
             path_label = idx
-            #test_set = CSV_Dataset(img_size, test_list, test = True, inception=inception, csv_data_path= path)
-            test_set = GeneralDataset(img_size, test_list, test=True, inception=inception, test_img_path=path)
+            test_set = CSV_Dataset(img_size, test_list, test = True, inception=inception, csv_data_path= path)
+            #test_set = GeneralDataset(img_size, test_list, test=True, inception=inception, test_img_path=path)
             # Just looks at one dataset
             test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=os.cpu_count())
             #display_dataloader(test_loader, 'Test Loader'+str(path_label))
@@ -908,12 +920,14 @@ if __name__ == '__main__':
     size_array = [img_size]#, 1440 ,1760]
     
     # Used for precent test
+    '''
     for size in range(0,100,5): #!
         if size == 0: size =1
         crop_perc = size/100 #!
+    '''
     # Used for fixed bounding_box
-    #for size in size_array:
-        study = optuna.create_study(direction="maximize", pruner=optuna.pruners.MedianPruner())
+    for size in size_array:
+        study = optuna.create_study(direction="maximize")#, pruner=optuna.pruners.MedianPruner())
         study.optimize(objective, n_trials=N_TRIALS, timeout=None)
 
         print("Number of finished trials: {}".format(len(study.trials)))
