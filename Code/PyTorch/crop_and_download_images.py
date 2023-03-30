@@ -199,7 +199,7 @@ if __name__ == "__main__":
     
     path_list = [
         #['Seagrass cover','Seagrass_Database' ,'/Annotation_Sets/14961_Seagrass_cover_NMSC_list.csv'], 
-        ['Hard coral cover','Hardcoral_Database' ,'/Annotation_Sets/167052_Hard_coral_cover_NMSC_list.csv'],
+        #['Hard coral cover','Hardcoral_Database' ,'/Annotation_Sets/167052_Hard_coral_cover_NMSC_list.csv'],
         ['Macroalgal canopy cover','Macroalgal_Database' ,'/Annotation_Sets/407756_Macroalgal_canopy_cover_NMSC_list.csv']
         ]
     for bounding_box in download_list:
