@@ -36,6 +36,11 @@ import re
 import pandas as pd
 from os.path import isfile, join
 from os import listdir
+from sklearn.metrics import confusion_matrix
+import seaborn as sn
+import pandas as pd
+import matplotlib.pyplot as plt
+
 #import torch.multiprocessing
 #torch.multiprocessing.set_sharing_strategy('file_system')
 
@@ -119,6 +124,7 @@ class CSV_Dataset(Dataset):
 class GeneralDataset(Dataset):
     def __init__(self, img_size, test_list, test, inception, test_img_path):
         self.inception = inception
+        self.test_indicator = test
         if test: # True test dataset is returned
             if test_list != []: # Dataset should be extracted out of training dataset
                 # Add unpadded and padded entries to data
@@ -163,18 +169,27 @@ class GeneralDataset(Dataset):
         class_id = self.class_map[class_name]
         img = Image.fromarray(img)
         if self.inception:
-            train_transforms = transforms.Compose([
-            transforms.Resize((299, 299)),
-            transforms.RandomVerticalFlip(p=0.5),
-            transforms.RandomHorizontalFlip(p=0.5),
-            transforms.RandomAutocontrast(p=0.5),
-            transforms.RandomEqualize(p=0.4),
-            transforms.ColorJitter(brightness=0.5, hue=0.2),
-            transforms.ToTensor(), # ToTensor : [0, 255] -> [0, 1]
-            transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                std=[0.229, 0.224, 0.225]),
-            
-            ])
+            if self.test_indicator: 
+                train_transforms = transforms.Compose([
+                transforms.Resize((299, 299)),
+                transforms.ToTensor(), # ToTensor : [0, 255] -> [0, 1]
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406],
+                    std=[0.229, 0.224, 0.225]),
+                ])
+            else:
+                train_transforms = transforms.Compose([
+                transforms.Resize((299, 299)),
+                transforms.RandomVerticalFlip(p=0.5),
+                transforms.RandomHorizontalFlip(p=0.5),
+                transforms.RandomAutocontrast(p=0.5),
+                #transforms.RandomEqualize(p=0.4),
+                transforms.ColorJitter(brightness=0.5, hue=0.2),
+                transforms.ToTensor(), # ToTensor : [0, 255] -> [0, 1]
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406],
+                    std=[0.229, 0.224, 0.225]),
+                ])
         else:
             train_transforms = transforms.Compose([
             transforms.ToTensor(), # ToTensor : [0, 255] -> [0, 1]
@@ -190,6 +205,7 @@ class KelpClassifier(pl.LightningModule):
     def __init__(self, backbone_name, no_filters, trainer, trial, img_size, batch_size): #dropout, learning_rate, 
         super().__init__()
         # init a pretrained resnet
+        self.csv_test_results = [[],[],[],[],[]]
         self.img_size = img_size
         self.trainer = trainer
         self.pl_module = LightningModule
@@ -285,7 +301,7 @@ class KelpClassifier(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         x, y, x_crop, y_crop = batch
         #x, y = batch
-        metrics, loss, f1_score, top_eck_p,top_class, res_y, top_p = analyze_pred(self,x, y, x_crop, y_crop)
+        metrics, loss, f1_score, top_eck_p,top_class, res_y, prob = analyze_pred(self,x, y, x_crop, y_crop)
         for i, metric in enumerate(metrics):
             self.training_losses[i].append(metric)
         return loss
@@ -293,7 +309,7 @@ class KelpClassifier(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         x, y, x_crop, y_crop = batch
         #x, y = batch
-        metrics, loss, f1_score, top_eck_p, top_class, res_y, top_p = analyze_pred(self,x, y, x_crop, y_crop)
+        metrics, loss, f1_score, top_eck_p, top_class, res_y, prob = analyze_pred(self,x, y, x_crop, y_crop)
         for i, metric in enumerate(metrics):
             self.valid_losses[i].append(metric)
         # only log when not sanity checking
@@ -309,7 +325,7 @@ class KelpClassifier(pl.LightningModule):
             x, y = batch
             x_crop = 0.5 #! Added for GeneralDataset 
             y_crop = 0.5 #!
-        metrics, loss, f1_score,top_eck_p, top_class, res_y, top_p = analyze_pred(self,x, y, x_crop, y_crop)
+        metrics, loss, f1_score,top_eck_p, top_class, res_y, prob = analyze_pred(self,x, y, x_crop, y_crop)
         #metrics=[loss.item(), accuracy.item(), TP, TN, FP, FN]
         for i, metric in enumerate(metrics):
             self.test_losses[i].append(metric)
@@ -317,6 +333,12 @@ class KelpClassifier(pl.LightningModule):
             self.test_eck_p.append(single_prob)
         accuracy, precision, recall, f1_score = get_acc_prec_rec_f1(self, metric = self.test_losses)
         image_to_tb(self, batch, batch_idx, 'test')
+        
+        global path_label
+        test_results = torch.cat((prob, y.unsqueeze(dim=1)), dim=1)
+        #T = torch.cat((prob,y), -1)
+        #self.csv_test_results[path_label].append(test_results.cpu().numpy())
+        self.csv_test_results[path_label] = torch.cat((self.csv_test_results[path_label], test_results.unsqueeze(dim=1)), dim=1)
         #self.log('f1_score', f1_score)
         #return f1_score
     
@@ -361,20 +383,9 @@ class KelpClassifier(pl.LightningModule):
             if not(real_test): #for normal testing
                 log_to_graph(self, metric_list[i], var, name, self.global_step)
             else: 
-                
                 self.logger.experiment.add_scalars('test_'+var, {name: metric_list[i]},path_label)
         
-        #! self.test has TP on [2], TN on [3], FP on [4], FN on [5]
-        '''
-        table = f"""
-            | Pred/True | Ecklonia  | Others  |
-            |----------|-----------|-----------|
-            | Ecklonia    | {np.sum(self.test_losses[2])} | {np.sum(self.test_losses[4])} |
-            | Others    | {np.sum(self.test_losses[5])} | {np.sum(self.test_losses[3])} |
-        """
-        table = '\n'.join(l.strip() for l in table.splitlines())
-        self.logger.add_text("Confusion Matrix Test", table, path_label)
-        '''
+        plot_confusion_matrix(self)
         # Add ROC curve
         #create_roc_curve(self)
         
@@ -385,8 +396,9 @@ class KelpClassifier(pl.LightningModule):
         for j, value in enumerate(test_pred_hist):
             step = 5 + j
             log_to_graph(self, value, 'test_probability', prob_name, step)
-        self.test = [[],[],[],[],[],[]]  # reset for next epoch
+        self.test_losses = [[],[],[],[],[],[]]  # reset for next epoch
         self.test_eck_p = [] # reset for next epoch
+        save_test_csv(self)
     
     def predict_step(self, batch, batch_idx):
         # This can be used for implementation
@@ -402,6 +414,58 @@ class KelpClassifier(pl.LightningModule):
     def configure_optimizers(self):
         return getattr(torch.optim, optimizer_name)(self.parameters(), lr=self.hparams.learning_rate)
         #return torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
+
+def save_test_csv(self):
+    global path_label
+    print(self.csv_test_results[path_label])
+    print('Hi Test')
+    
+    df = pd.DataFrame(self.csv_test_results[path_label]) 
+    path_list = [
+    'WA', 
+    'NSW_Broughton', 
+    'VIC_Prom',
+    'VIC_Discoverybay', 
+    'TAS_Lanterns']
+        
+    # saving the dataframe 
+    df.to_csv('test_results_'+ path_list[path_label]+'.csv')
+    
+
+def plot_confusion_matrix(self):
+    #! self.test has TP on [2], TN on [3], FP on [4], FN on [5]
+
+    fig, ax = plt.subplots()
+
+    # hide axes
+    fig.patch.set_visible(False)
+    ax.axis('off')
+    ax.axis('tight')
+    np_values = np.array([['Ecklonia', np.sum(self.test_losses[2]), np.sum(self.test_losses[4])], ['Others', np.sum(self.test_losses[5]), np.sum(self.test_losses[3])]])
+    
+    df = pd.DataFrame(np_values, columns=['Pred/True', 'Ecklonia', 'Others'])
+
+    the_table = ax.table(cellText=df.values, colLabels=df.columns, loc='center')
+    the_table[(1, 1)].set_facecolor("#B0FAA4")
+    the_table[(2, 2)].set_facecolor("#B0FAA4")
+    the_table[(1, 2)].set_facecolor("#F06969")
+    the_table[(2, 1)].set_facecolor("#F06969")
+    the_table.set_fontsize(30)
+    the_table.auto_set_column_width(col=list(range(3)))
+    the_table.scale(4,4)
+    #table[(1, 0)].set_facecolor("B0FAA4")
+    #F06969
+
+    fig.tight_layout()
+    fig.canvas.draw()
+
+    # Now we can save it to a numpy array.
+    data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+    data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+    #plt.show()
+    tensorboard = self.logger.experiment
+    tensorboard.add_image('Confusion Matrix Test' , data, path_label, dataformats='HWC')
+
 
 def get_crop_points(self, x, y, original_image, img_size):
     x_img, y_img = original_image.size
@@ -559,7 +623,7 @@ def analyze_pred(self,x,y, x_crop, y_crop):
         #rec_score = rec_metric(top_class, y)
         #metrics=[loss.item(), accuracy.item(), f1_score.item(), prec_score.item(), rec_score.item()]
         metrics=[loss.item(), accuracy.item(), TP, TN, FP, FN]
-        return metrics, loss, f1_score, top_eck_p, top_class, y, top_p
+        return metrics, loss, f1_score, top_eck_p, top_class, y, prob
 
 def get_args():
     parser = argparse.ArgumentParser(description='Enter Parameters to define model training.')
@@ -570,13 +634,13 @@ def get_args():
 
     parser.add_argument('--eck_test_perc', metavar='eck_tp', type=float, help='The percentage of ecklonia examples in the test set', default=0.5)
 
-    parser.add_argument('--limit_train_batches', metavar='ltrb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.2)
+    parser.add_argument('--limit_train_batches', metavar='ltrb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.01)
 
-    parser.add_argument('--limit_val_batches', metavar='lvb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.2)
+    parser.add_argument('--limit_val_batches', metavar='lvb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.01)
 
-    parser.add_argument('--limit_test_batches', metavar='lteb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=1.0)
+    parser.add_argument('--limit_test_batches', metavar='lteb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.5)
 
-    parser.add_argument('--epochs', metavar='epochs', type=int, help='The number of epcohs the algorithm trains', default=1) #! 
+    parser.add_argument('--epochs', metavar='epochs', type=int, help='The number of epcohs the algorithm trains', default=1) 
 
     parser.add_argument('--log_path', metavar='log_path', type=str, help='The path where the logger files are saved', default='/pvol/logs/')
 
@@ -596,7 +660,7 @@ def get_args():
 
     parser.add_argument('--backbone', metavar='backbone', type=str, help='Name of the model which should be used for transfer learning', default='inception_v3')
 
-    parser.add_argument('--real_test',  help='If True: a seperate dataset is used, if False dataset is extracted out of training set. ', action='store_false') #!  
+    parser.add_argument('--real_test',  help='If True: a seperate dataset is used, if False dataset is extracted out of training set. ', action='store_false')  
 
     parser.add_argument('--test_img_path', metavar='test_img_path', type=str, help='Path to the database of test images', default='/pvol/Ecklonia_Testbase/NSW_Broughton/')
 
@@ -609,8 +673,6 @@ def get_args():
 
     parser.add_argument('--label_name', metavar='label_name', type=str, help='Name of the label used in the csv file', default='Ecklonia radiata') #Seagrass cover
     
-    
-
     args =parser.parse_args()
     no_filters = 0
     return args.percent_valid_examples,args.percent_test_examples, args.eck_test_perc,args.limit_train_batches,args.limit_val_batches,args.limit_test_batches,args.epochs,args.log_path,args.log_name,args.img_path, args.n_trials,args.mlp_opt, args.mlp_perc, args.mlp_path,args.backbone, no_filters, args.real_test, args.test_img_path, args.img_size, args.csv_path, args.crop_perc, args.batch_size, args.label_name
@@ -863,7 +925,7 @@ def objective(trial: optuna.trial.Trial) -> float:
 
     if real_test:
         #Used for CSV Dataset
-        
+        '''
         path_list = [
             '/pvol/Ecklonia_Testbase/WA/Original_images/annotations-u45-leo_kelp_SWC_WA_AI_test-leo_kelp_AI_SWC_WA_test_25pts-8148-7652a9b48f0e3186fe5d-dataframe.csv', 
             '/pvol/Ecklonia_Testbase/NSW_Broughton/Original_images/annotations-u45-leo_kelp_AI_test_broughton_is_NSW-leo_kelp_AI_test_broughton_is_25pts-8152-7652a9b48f0e3186fe5d-dataframe.csv', 
@@ -871,6 +933,7 @@ def objective(trial: optuna.trial.Trial) -> float:
             '/pvol/Ecklonia_Testbase/VIC_Discoverybay/Original_images/annotations-u45-leo_kelp_AI_test_discoverybay_VIC_phylospora-leo_kelp_AI_test_db_phylospora_25pts-8149-7652a9b48f0e3186fe5d-dataframe.csv', 
             '/pvol/Ecklonia_Testbase/TAS_Lanterns/Original_images/annotations-u45-leo_kelp_AI_test_lanterns_TAS-leo_kelp_AI_test_lanterns_25pts-8151-7652a9b48f0e3186fe5d-dataframe.csv']
         '''
+        
         #Used for Generaldataset
         path_list = [
             '/pvol/Ecklonia_Testbase/WA/', 
@@ -878,13 +941,13 @@ def objective(trial: optuna.trial.Trial) -> float:
             '/pvol/Ecklonia_Testbase/VIC_Prom/',
             '/pvol/Ecklonia_Testbase/VIC_Discoverybay/', 
             '/pvol/Ecklonia_Testbase/TAS_Lanterns/']
-        '''
+        
         for idx ,path in enumerate(path_list):
             global path_label 
             #path_label = re.sub(".*/(.*)/", "\\1", path)
             path_label = idx
-            test_set = CSV_Dataset(img_size, test_list, test = True, inception=inception, csv_data_path= path)
-            #test_set = GeneralDataset(img_size, test_list, test=True, inception=inception, test_img_path=path)
+            #test_set = CSV_Dataset(img_size, test_list, test = True, inception=inception, csv_data_path= path)
+            test_set = GeneralDataset(img_size, test_list, test=True, inception=inception, test_img_path=path)
             # Just looks at one dataset
             test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=os.cpu_count())
             #display_dataloader(test_loader, 'Test Loader'+str(path_label))
