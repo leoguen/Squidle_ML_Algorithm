@@ -299,7 +299,12 @@ class KelpClassifier(pl.LightningModule):
         return x
 
     def training_step(self, batch, batch_idx):
-        x, y, x_crop, y_crop = batch
+        try:
+            x, y, x_crop, y_crop = batch
+        except: 
+            x, y = batch
+            x_crop = 0.5 #! Added for GeneralDataset 
+            y_crop = 0.5 #!
         #x, y = batch
         metrics, loss, f1_score, top_eck_p,top_class, res_y, prob = analyze_pred(self,x, y, x_crop, y_crop)
         for i, metric in enumerate(metrics):
@@ -307,7 +312,12 @@ class KelpClassifier(pl.LightningModule):
         return loss
     
     def validation_step(self, batch, batch_idx):
-        x, y, x_crop, y_crop = batch
+        try:
+            x, y, x_crop, y_crop = batch
+        except: 
+            x, y = batch
+            x_crop = 0.5 #! Added for GeneralDataset 
+            y_crop = 0.5 #!
         #x, y = batch
         metrics, loss, f1_score, top_eck_p, top_class, res_y, prob = analyze_pred(self,x, y, x_crop, y_crop)
         for i, metric in enumerate(metrics):
@@ -335,10 +345,11 @@ class KelpClassifier(pl.LightningModule):
         image_to_tb(self, batch, batch_idx, 'test')
         
         global path_label
-        test_results = torch.cat((prob, y.unsqueeze(dim=1)), dim=1)
+        test_results = torch.cat((prob, y.unsqueeze(dim=1)), dim=1).cpu().numpy()
         #T = torch.cat((prob,y), -1)
-        #self.csv_test_results[path_label].append(test_results.cpu().numpy())
-        self.csv_test_results[path_label] = torch.cat((self.csv_test_results[path_label], test_results.unsqueeze(dim=1)), dim=1)
+        self.csv_test_results[path_label].extend(test_results)
+
+        #self.csv_test_results[path_label] = torch.cat((self.csv_test_results[path_label], test_results.unsqueeze(dim=1)), dim=1)
         #self.log('f1_score', f1_score)
         #return f1_score
     
@@ -398,6 +409,7 @@ class KelpClassifier(pl.LightningModule):
             log_to_graph(self, value, 'test_probability', prob_name, step)
         self.test_losses = [[],[],[],[],[],[]]  # reset for next epoch
         self.test_eck_p = [] # reset for next epoch
+        
         save_test_csv(self)
     
     def predict_step(self, batch, batch_idx):
@@ -417,24 +429,25 @@ class KelpClassifier(pl.LightningModule):
 
 def save_test_csv(self):
     global path_label
-    print(self.csv_test_results[path_label])
-    print('Hi Test')
     
-    df = pd.DataFrame(self.csv_test_results[path_label]) 
     path_list = [
     'WA', 
     'NSW_Broughton', 
     'VIC_Prom',
     'VIC_Discoverybay', 
     'TAS_Lanterns']
-        
+
+    test_csv_path = LOGGER_PATH + LOG_NAME +'/'+ str(img_size) + '/lightning_logs/version_{}/'.format(self.trainer.logger.version) + 'test_results_'+ path_list[path_label]+'.csv'
+
+    df = pd.DataFrame(self.csv_test_results[path_label]) 
+    
     # saving the dataframe 
-    df.to_csv('test_results_'+ path_list[path_label]+'.csv')
+    #df.to_csv(LOGGER_PATH + LOG_NAME +'/'+ str(img_size)+'/lightnings_logs/test_results_'+ path_list[path_label]+'.csv')
+    df.to_csv(test_csv_path)
     
 
 def plot_confusion_matrix(self):
     #! self.test has TP on [2], TN on [3], FP on [4], FN on [5]
-
     fig, ax = plt.subplots()
 
     # hide axes
@@ -835,8 +848,9 @@ def objective(trial: optuna.trial.Trial) -> float:
         test_list = []
     else: 
         test_list = get_test_dataset(img_size, PERCENT_TEST_EXAMPLES, ECK_TEST_PERC)
-    
-    train_val_set = CSV_Dataset(img_size, test_list, test = False, inception = inception, csv_data_path = csv_path)
+    #test_set = GeneralDataset(img_size, test_list, test=True, inception=inception, test_img_path=path)
+    train_val_set = GeneralDataset(img_size, test_list, test = False, inception = inception, test_img_path = csv_path)
+    #train_val_set = CSV_Dataset(img_size, test_list, test = False, inception = inception, csv_data_path = csv_path)
     
     global training_set, validation_set
     training_set, validation_set = torch.utils.data.random_split(train_val_set,[0.90, 0.10], generator=torch.Generator().manual_seed(423))
@@ -925,15 +939,15 @@ def objective(trial: optuna.trial.Trial) -> float:
 
     if real_test:
         #Used for CSV Dataset
-        '''
+        
         path_list = [
             '/pvol/Ecklonia_Testbase/WA/Original_images/annotations-u45-leo_kelp_SWC_WA_AI_test-leo_kelp_AI_SWC_WA_test_25pts-8148-7652a9b48f0e3186fe5d-dataframe.csv', 
             '/pvol/Ecklonia_Testbase/NSW_Broughton/Original_images/annotations-u45-leo_kelp_AI_test_broughton_is_NSW-leo_kelp_AI_test_broughton_is_25pts-8152-7652a9b48f0e3186fe5d-dataframe.csv', 
             '/pvol/Ecklonia_Testbase/VIC_Prom/Original_images/annotations-u45-leo_kelp_AI_test_prom_VIC-leo_kelp_AI_test_prom_25pts-8150-7652a9b48f0e3186fe5d-dataframe.csv',
             '/pvol/Ecklonia_Testbase/VIC_Discoverybay/Original_images/annotations-u45-leo_kelp_AI_test_discoverybay_VIC_phylospora-leo_kelp_AI_test_db_phylospora_25pts-8149-7652a9b48f0e3186fe5d-dataframe.csv', 
             '/pvol/Ecklonia_Testbase/TAS_Lanterns/Original_images/annotations-u45-leo_kelp_AI_test_lanterns_TAS-leo_kelp_AI_test_lanterns_25pts-8151-7652a9b48f0e3186fe5d-dataframe.csv']
-        '''
         
+        '''
         #Used for Generaldataset
         path_list = [
             '/pvol/Ecklonia_Testbase/WA/', 
@@ -941,13 +955,13 @@ def objective(trial: optuna.trial.Trial) -> float:
             '/pvol/Ecklonia_Testbase/VIC_Prom/',
             '/pvol/Ecklonia_Testbase/VIC_Discoverybay/', 
             '/pvol/Ecklonia_Testbase/TAS_Lanterns/']
-        
+        '''
         for idx ,path in enumerate(path_list):
             global path_label 
             #path_label = re.sub(".*/(.*)/", "\\1", path)
             path_label = idx
-            #test_set = CSV_Dataset(img_size, test_list, test = True, inception=inception, csv_data_path= path)
-            test_set = GeneralDataset(img_size, test_list, test=True, inception=inception, test_img_path=path)
+            test_set = CSV_Dataset(img_size, test_list, test = True, inception=inception, csv_data_path= path)
+            #test_set = GeneralDataset(img_size, test_list, test=True, inception=inception, test_img_path=path)
             # Just looks at one dataset
             test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=os.cpu_count())
             #display_dataloader(test_loader, 'Test Loader'+str(path_label))
