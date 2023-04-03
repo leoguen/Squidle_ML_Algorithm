@@ -345,7 +345,8 @@ class KelpClassifier(pl.LightningModule):
         image_to_tb(self, batch, batch_idx, 'test')
         
         global path_label
-        test_results = torch.cat((prob, y.unsqueeze(dim=1)), dim=1).cpu().numpy()
+        test_results = torch.cat((prob, y.unsqueeze(dim=1)), dim=1)#.cpu().numpy()
+        test_results = torch.cat((test_results, top_class.unsqueeze(dim=1)), dim=1).cpu().numpy()
         #T = torch.cat((prob,y), -1)
         self.csv_test_results[path_label].extend(test_results)
 
@@ -439,7 +440,7 @@ def save_test_csv(self):
 
     test_csv_path = LOGGER_PATH + LOG_NAME +'/'+ str(img_size) + '/lightning_logs/version_{}/'.format(self.trainer.logger.version) + 'test_results_'+ path_list[path_label]+'.csv'
 
-    df = pd.DataFrame(self.csv_test_results[path_label]) 
+    df = pd.DataFrame(self.csv_test_results[path_label], columns=('Others', 'Ecklonia', 'Truth', 'Pred')) 
     
     # saving the dataframe 
     #df.to_csv(LOGGER_PATH + LOG_NAME +'/'+ str(img_size)+'/lightnings_logs/test_results_'+ path_list[path_label]+'.csv')
@@ -661,7 +662,9 @@ def get_args():
 
     parser.add_argument('--img_path', metavar='img_path', type=str, help='Path to the database of images', default='/pvol/Ecklonia_Database/') #/pvol/Seagrass_Database/
 
-    parser.add_argument('--csv_path', metavar='csv_path', type=str, help='Path to the csv file describing the images', default='/pvol/Ecklonia_Database/Original_images/106704_normalized_deployment_key_list.csv')#/pvol/Seagrass_Database/Original_images/14961_Seagrass_cover_NMSC_list.csv
+    parser.add_argument('--csv_path', metavar='csv_path', type=str, help='Path to the csv file describing the images', default='/pvol/Ecklonia_1_to_10_Database/Original_images/588335_1_to_10_Ecklonia_radiata_NMSC_list.csv')
+    #/pvol/Seagrass_Database/Original_images/14961_Seagrass_cover_NMSC_list.csv
+    #/pvol/Ecklonia_Database/Original_images/106704_normalized_deployment_key_list.csv
 
     parser.add_argument('--n_trials', metavar='n_trials', type=int, help='Number of trials that Optuna runs for', default=1) #!
 
@@ -848,9 +851,9 @@ def objective(trial: optuna.trial.Trial) -> float:
         test_list = []
     else: 
         test_list = get_test_dataset(img_size, PERCENT_TEST_EXAMPLES, ECK_TEST_PERC)
-    #test_set = GeneralDataset(img_size, test_list, test=True, inception=inception, test_img_path=path)
-    train_val_set = GeneralDataset(img_size, test_list, test = False, inception = inception, test_img_path = csv_path)
-    #train_val_set = CSV_Dataset(img_size, test_list, test = False, inception = inception, csv_data_path = csv_path)
+
+    #train_val_set = GeneralDataset(img_size, test_list, test = False, inception = inception, test_img_path = csv_path)
+    train_val_set = CSV_Dataset(img_size, test_list, test = False, inception = inception, csv_data_path = csv_path)
     
     global training_set, validation_set
     training_set, validation_set = torch.utils.data.random_split(train_val_set,[0.90, 0.10], generator=torch.Generator().manual_seed(423))

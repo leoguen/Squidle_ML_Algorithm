@@ -32,11 +32,12 @@ class modify_annotation_set():
         self.sibling = False
         self.red_list = False
         self.sib_factor = 0.3
-        self.coi = "Hard coral cover" # Class of Interest
+        self.coi = "Ecklonia radiata" # Class of Interest
         #Macroalgal canopy cover
         #Hard coral cover
         #Seagrass cover
-        self.row_name = "label_translated_name"
+        self.row_name = 'label_name'#"label_translated_name"
+        self.norm_factor = 10
 
     def delete_entries(self, csv_file_df, label, value):
         shape_before = csv_file_df.shape[0]
@@ -168,7 +169,7 @@ class modify_annotation_set():
             # Normalize all classes so that the overall number is equal to Ecklonia entries
             norm_classes_df = classes_df.div(classes_df.drop(self.coi).sum())
         
-        norm_classes_df = (norm_classes_df.mul(classes_df[self.coi])).astype(int)
+        norm_classes_df = (norm_classes_df.mul(classes_df[self.coi]*self.norm_factor)).astype(int)
 
         # Correct class of interest number to all entries
         norm_classes_df[self.coi] = classes_df[self.coi]
@@ -211,6 +212,8 @@ class modify_annotation_set():
         
         if self.sibling:
             path =here+'/Annotation_Sets/'+ str(len(csv_file_df.index))+'_' + str(int(self.sib_factor*100)) +'_sibling_'+ description +'_list.csv'
+        elif self.norm_factor != 1:
+            path =here+'/Annotation_Sets/'+ str(len(csv_file_df.index))+'_1_to_' + str(int(self.norm_factor)) + description +'_list.csv'
         else: 
             path = here+'/Annotation_Sets/'+ str(len(csv_file_df.index))+'_'+ description +'_list.csv'
         
@@ -224,7 +227,7 @@ if __name__ == "__main__":
     here = os.path.dirname(os.path.abspath(__file__))
     #list_name = '/Annotation_Sets/Full_Annotation_List.csv'
     print('Loading CSV file, this may take a while.')
-    list_name = '/Annotation_Sets/720_Full_Annotation_List_NMSC.csv'
+    list_name = '/Annotation_Sets/Full_Annotation_List_Deployment_Key.csv'
     #list_name = '/Annotation_Sets/Full_Annotation_List.csv'
     csv_file_df= pd.read_csv(here + list_name, on_bad_lines='skip', low_memory=False) 
     
@@ -237,9 +240,9 @@ if __name__ == "__main__":
 
     data = modify_annotation_set()
     #csv_file_df = csv_file_df.loc[csv_file_df['label_translated_name'] == 'Seagrass cover']
-    print(csv_file_df.label_translated_name.value_counts())
-    csv_file_df = data.delete_review(csv_file_df)
-    print(csv_file_df.label_translated_name.value_counts())
+    #print(csv_file_df.label_translated_name.value_counts())
+    #csv_file_df = data.delete_review(csv_file_df)
+    #print(csv_file_df.label_translated_name.value_counts())
 
     data.normalize_set(csv_file_df)
     

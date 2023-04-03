@@ -148,8 +148,8 @@ class crop_download_images():
 
 if __name__ == "__main__":
     keep_og_size=True
-    coi = 'Seagrass cover' #Ecklonia
-    loi = 'Seagrass cover' #Ecklonia radiata
+    coi = 'Ecklonia' #'Seagrass cover' 
+    loi = 'Ecklonia radiata' #Seagrass cover' 
     #Macroalgal canopy cover
     #Hard coral cover
     #Seagrass cover
@@ -189,7 +189,7 @@ if __name__ == "__main__":
     [976,976], 
     [1008,1008]
     ]
-    download_list = [[336,336]]
+    download_list = [[299,299]]
     path_list = [
         ['NSW_Broughton','/Annotation_Sets/Test_sets/annotations-u45-leo_kelp_AI_test_broughton_is_NSW-leo_kelp_AI_test_broughton_is_25pts-8152-7652a9b48f0e3186fe5d-dataframe.csv'], 
         ['VIC_Discoverybay','/Annotation_Sets/Test_sets/annotations-u45-leo_kelp_AI_test_discoverybay_VIC_phylospora-leo_kelp_AI_test_db_phylospora_25pts-8149-7652a9b48f0e3186fe5d-dataframe.csv'],
@@ -199,9 +199,11 @@ if __name__ == "__main__":
     
     path_list = [
         #['Seagrass cover','Seagrass_Database' ,'/Annotation_Sets/14961_Seagrass_cover_NMSC_list.csv'], 
-        #['Hard coral cover','Hardcoral_Database' ,'/Annotation_Sets/167052_Hard_coral_cover_NMSC_list.csv'],
+        ['Hard coral cover','Hardcoral_Database' ,'/Annotation_Sets/167052_Hard_coral_cover_NMSC_list.csv'],
         ['Macroalgal canopy cover','Macroalgal_Database' ,'/Annotation_Sets/407756_Macroalgal_canopy_cover_NMSC_list.csv']
         ]
+    
+    path_list = [['Ecklonia radiata','Ecklonia_Database' ,'/Annotation_Sets/106704_normalized_deployment_key_list.csv']]
     for bounding_box in download_list:
         for name,database,path in path_list:    
             coi = name
