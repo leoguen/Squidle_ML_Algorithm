@@ -10,15 +10,15 @@ class modify_annotation_set():
 
     def __init__(self):
         self.sibling = False
-        self.red_list = False
+        self.red_list = True
         self.sib_factor = 0.3
-        self.coi = 'Hard coral cover' #Class of Interest
-        #"Ecklonia radiata" 
+        self.coi = 'Ecklonia radiata' #Class of Interest
+        #Hard coral cover 
         #Macroalgal canopy cover
         #Hard coral cover
         
-        self.row_name = "label_translated_name" #'label_name'
-        self.norm_factor = 1
+        self.row_name = 'label_name' # 'label_translated_name'
+        self.norm_factor = 10
 
     def delete_entries(self, csv_file_df, label, value):
         shape_before = csv_file_df.shape[0]
@@ -126,7 +126,7 @@ if __name__ == "__main__":
     here = os.path.dirname(os.path.abspath(__file__))
     #list_name = '/Annotation_Sets/Full_Annotation_List.csv'
     print('Loading CSV file, this may take a while.')
-    list_name = '/Annotation_Sets/720_Full_Annotation_List_NMSC_header.csv'
+    list_name = '/Annotation_Sets/Full_Annotation_List_Deployment_Key.csv'
     #list_name = '/Annotation_Sets/Full_Annotation_List.csv'
     csv_file_df= pd.read_csv(here + list_name, on_bad_lines='skip', low_memory=False) 
     

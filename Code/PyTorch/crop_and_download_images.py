@@ -203,7 +203,7 @@ if __name__ == "__main__":
         ['Macroalgal canopy cover','Macroalgal_Database' ,'/Annotation_Sets/407756_Macroalgal_canopy_cover_NMSC_list.csv']
         ]
     
-    path_list = [['Ecklonia radiata','Ecklonia_Database' ,'/Annotation_Sets/106704_normalized_deployment_key_list.csv']]
+    path_list = [['Ecklonia radiata','Ecklonia_1_to_10_Database_Second' ,'/Annotation_Sets/588335_1_to_10_Ecklonia_radiata_red_list.csv']]
     for bounding_box in download_list:
         for name,database,path in path_list:    
             coi = name

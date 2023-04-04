@@ -646,15 +646,15 @@ def get_args():
 
     parser.add_argument('--percent_test_examples', metavar='pte', type=float, help='The percentage of test examples taking out of dataset', default=0.1)
 
-    parser.add_argument('--eck_test_perc', metavar='eck_tp', type=float, help='The percentage of ecklonia examples in the test set', default=0.5)
+    parser.add_argument('--eck_test_perc', metavar='eck_tp', type=float, help='The percentage of ecklonia examples in the test set', default=1.0)
 
-    parser.add_argument('--limit_train_batches', metavar='ltrb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.01)
+    parser.add_argument('--limit_train_batches', metavar='ltrb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.1) #!
 
-    parser.add_argument('--limit_val_batches', metavar='lvb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.01)
+    parser.add_argument('--limit_val_batches', metavar='lvb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.1) #!
 
-    parser.add_argument('--limit_test_batches', metavar='lteb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.5)
+    parser.add_argument('--limit_test_batches', metavar='lteb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.5) #!
 
-    parser.add_argument('--epochs', metavar='epochs', type=int, help='The number of epcohs the algorithm trains', default=1) 
+    parser.add_argument('--epochs', metavar='epochs', type=int, help='The number of epcohs the algorithm trains', default=1) #!
 
     parser.add_argument('--log_path', metavar='log_path', type=str, help='The path where the logger files are saved', default='/pvol/logs/')
 
@@ -662,9 +662,9 @@ def get_args():
 
     parser.add_argument('--img_path', metavar='img_path', type=str, help='Path to the database of images', default='/pvol/Ecklonia_Database/') #/pvol/Seagrass_Database/
 
-    parser.add_argument('--csv_path', metavar='csv_path', type=str, help='Path to the csv file describing the images', default='/pvol/Ecklonia_1_to_10_Database/Original_images/588335_1_to_10_Ecklonia_radiata_NMSC_list.csv')
+    parser.add_argument('--csv_path', metavar='csv_path', type=str, help='Path to the csv file describing the images', default='/pvol/Ecklonia_Database/Original_images/106704_normalized_deployment_key_list.csv')
     #/pvol/Seagrass_Database/Original_images/14961_Seagrass_cover_NMSC_list.csv
-    #/pvol/Ecklonia_Database/Original_images/106704_normalized_deployment_key_list.csv
+    #/pvol/Ecklonia_1_to_10_Database/Original_images/588335_1_to_10_Ecklonia_radiata_NMSC_list.csv
 
     parser.add_argument('--n_trials', metavar='n_trials', type=int, help='Number of trials that Optuna runs for', default=1) #!
 
@@ -676,7 +676,7 @@ def get_args():
 
     parser.add_argument('--backbone', metavar='backbone', type=str, help='Name of the model which should be used for transfer learning', default='inception_v3')
 
-    parser.add_argument('--real_test',  help='If True: a seperate dataset is used, if False dataset is extracted out of training set. ', action='store_false')  
+    parser.add_argument('--real_test',  help='If True: a seperate dataset is used, if False dataset is extracted out of training set. ', action='store_false') #!
 
     parser.add_argument('--test_img_path', metavar='test_img_path', type=str, help='Path to the database of test images', default='/pvol/Ecklonia_Testbase/NSW_Broughton/')
 
@@ -852,8 +852,8 @@ def objective(trial: optuna.trial.Trial) -> float:
     else: 
         test_list = get_test_dataset(img_size, PERCENT_TEST_EXAMPLES, ECK_TEST_PERC)
 
-    #train_val_set = GeneralDataset(img_size, test_list, test = False, inception = inception, test_img_path = csv_path)
-    train_val_set = CSV_Dataset(img_size, test_list, test = False, inception = inception, csv_data_path = csv_path)
+    train_val_set = GeneralDataset(img_size, test_list, test = False, inception = inception, test_img_path = csv_path)
+    #train_val_set = CSV_Dataset(img_size, test_list, test = False, inception = inception, csv_data_path = csv_path)
     
     global training_set, validation_set
     training_set, validation_set = torch.utils.data.random_split(train_val_set,[0.90, 0.10], generator=torch.Generator().manual_seed(423))
@@ -963,8 +963,8 @@ def objective(trial: optuna.trial.Trial) -> float:
             global path_label 
             #path_label = re.sub(".*/(.*)/", "\\1", path)
             path_label = idx
-            test_set = CSV_Dataset(img_size, test_list, test = True, inception=inception, csv_data_path= path)
-            #test_set = GeneralDataset(img_size, test_list, test=True, inception=inception, test_img_path=path)
+            #test_set = CSV_Dataset(img_size, test_list, test = True, inception=inception, csv_data_path= path)
+            test_set = GeneralDataset(img_size, test_list, test=True, inception=inception, test_img_path=path)
             # Just looks at one dataset
             test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=os.cpu_count())
             #display_dataloader(test_loader, 'Test Loader'+str(path_label))

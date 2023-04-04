@@ -50,8 +50,8 @@ class create_csv_list():
     '''
     def get_annotation_set(self, API_TOKEN, URL,  id_list, HERE):
         # Create .csv file to append to 
-        anno_name = '/Annotation_Sets/728_Full_Annotation_List_NMSC.csv'
-        prob_name = '/Annotation_Sets/728_Problem_Files_NMSC_Annotation_List.txt'
+        anno_name = '/Annotation_Sets/731_Full_Annotation_List_NMSC.csv'
+        prob_name = '/Annotation_Sets/731_Problem_Files_NMSC_Annotation_List.csv'
         
         with open(HERE + anno_name, 'w') as creating_new_csv_file: 
             pass
@@ -80,7 +80,7 @@ class create_csv_list():
                 except:
                     print("Problem with annotationset {}, will be skipped".format(id))
                     print(df.head(0))
-                    with open('/home/ubuntu/IMAS/Code/PyTorch/Annotation_Sets/Problem_Files_NMSC_Full_Annotation_List.txt', 'a') as f:
+                    with open('/home/ubuntu/Documents/IMAS/Code/PyTorch' + prob_name, 'a') as f:
                         f.write('\n ID: ' + str(id) + '\n')
                         f.write(str(df.head(0)))
                     #df = df.insert(0, id, "")
