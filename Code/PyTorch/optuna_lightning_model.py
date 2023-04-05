@@ -104,15 +104,16 @@ class CSV_Dataset(Dataset):
                 transforms.Resize((299, 299)),
                 transforms.RandomVerticalFlip(p=0.5),
                 transforms.RandomHorizontalFlip(p=0.5),
-                transforms.RandomAutocontrast(p=0.5),
+                #transforms.RandomAutocontrast(p=0.5),
                 #transforms.RandomEqualize(p=0.4),
-                transforms.ColorJitter(brightness=0.5, hue=0.2),
+                #transforms.ColorJitter(brightness=0.5, hue=0.2),
                 transforms.ToTensor(), # ToTensor : [0, 255] -> [0, 1]
                 transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                     std=[0.229, 0.224, 0.225]),
                 ])
         else:
             train_transforms = transforms.Compose([
+            transforms.Resize((299, 299)),
             transforms.ToTensor(), # ToTensor : [0, 255] -> [0, 1]
             transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                 std=[0.229, 0.224, 0.225])
@@ -245,12 +246,12 @@ class KelpClassifier(pl.LightningModule):
         #self.save_hyperparameters(ignore=['trainer','trial'])
 
     def train_dataloader(self):
-        train_dataloader = DataLoader(training_set, batch_size=self.batch_size, num_workers=os.cpu_count(),shuffle=False)
+        train_dataloader = DataLoader(training_set, batch_size=self.batch_size, num_workers=60)#os.cpu_count(),shuffle=False)
         #display_dataloader(train_dataloader, 'train_dataloader')
         return train_dataloader
     
     def val_dataloader(self):
-        val_dataloader = DataLoader(validation_set, batch_size=self.batch_size, num_workers=os.cpu_count(),shuffle=False)
+        val_dataloader = DataLoader(validation_set, batch_size=self.batch_size, num_workers=60)#os.cpu_count(),shuffle=False)
         #display_dataloader(val_dataloader, 'val_dataloader')
         return val_dataloader
         #return DataLoader(validation_set, batch_size=self.batch_size, num_workers=os.cpu_count(),shuffle=False)
@@ -437,8 +438,13 @@ def save_test_csv(self):
     'VIC_Prom',
     'VIC_Discoverybay', 
     'TAS_Lanterns']
+    
+    if crop_perc != 0:
+        dir = LOGGER_PATH+LOG_NAME+'/perc_'+str(int(crop_perc*100))+'/' 
+    else: 
+        dir = LOGGER_PATH+LOG_NAME+'/'+str(img_size)+'/'
 
-    test_csv_path = LOGGER_PATH + LOG_NAME +'/'+ str(img_size) + '/lightning_logs/version_{}/'.format(self.trainer.logger.version) + 'test_results_'+ path_list[path_label]+'.csv'
+    test_csv_path = dir + 'lightning_logs/version_{}/'.format(self.trainer.logger.version) + 'test_results_'+ path_list[path_label]+'.csv'
 
     df = pd.DataFrame(self.csv_test_results[path_label], columns=('Others', 'Ecklonia', 'Truth', 'Pred')) 
     
@@ -852,8 +858,8 @@ def objective(trial: optuna.trial.Trial) -> float:
     else: 
         test_list = get_test_dataset(img_size, PERCENT_TEST_EXAMPLES, ECK_TEST_PERC)
 
-    train_val_set = GeneralDataset(img_size, test_list, test = False, inception = inception, test_img_path = csv_path)
-    #train_val_set = CSV_Dataset(img_size, test_list, test = False, inception = inception, csv_data_path = csv_path)
+    #train_val_set = GeneralDataset(img_size, test_list, test = False, inception = inception, test_img_path = csv_path)
+    train_val_set = CSV_Dataset(img_size, test_list, test = False, inception = inception, csv_data_path = csv_path)
     
     global training_set, validation_set
     training_set, validation_set = torch.utils.data.random_split(train_val_set,[0.90, 0.10], generator=torch.Generator().manual_seed(423))
@@ -877,7 +883,7 @@ def objective(trial: optuna.trial.Trial) -> float:
         enable_checkpointing=True,
         max_epochs=EPOCHS,
         accelerator=acc_val,
-        #callbacks=[EarlyStopping(monitor="f1_score", mode="max")],
+        callbacks=[EarlyStopping(monitor="f1_score", mode="max")],
         limit_train_batches=LIMIT_TRAIN_BATCHES,
         limit_val_batches=LIMIT_VAL_BATCHES,
         limit_test_batches=LIMIT_TEST_BATCHES,
@@ -963,15 +969,15 @@ def objective(trial: optuna.trial.Trial) -> float:
             global path_label 
             #path_label = re.sub(".*/(.*)/", "\\1", path)
             path_label = idx
-            #test_set = CSV_Dataset(img_size, test_list, test = True, inception=inception, csv_data_path= path)
-            test_set = GeneralDataset(img_size, test_list, test=True, inception=inception, test_img_path=path)
+            test_set = CSV_Dataset(img_size, test_list, test = True, inception=inception, csv_data_path= path)
+            #test_set = GeneralDataset(img_size, test_list, test=True, inception=inception, test_img_path=path)
             # Just looks at one dataset
-            test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=os.cpu_count())
+            test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=60)#os.cpu_count())
             #display_dataloader(test_loader, 'Test Loader'+str(path_label))
             trainer.test(ckpt_path='best', dataloaders=test_loader)
     else: 
         test_set = GeneralDataset(img_size, test_list, test = True, inception=inception,test_img_path = test_img_path)
-        test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=True, num_workers=os.cpu_count())
+        test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=True, num_workers=60)#os.cpu_count())
         #display_dataloader(test_loader, 'Test Loader Generaldataset')
         trainer.test(ckpt_path='best', dataloaders=test_loader)
     
@@ -992,21 +998,33 @@ if __name__ == '__main__':
     elif label_name == 'Macroalgal canopy cover':
         one_word_label = 'Macroalgal'
     
+    #model_specs = [
+        #['resnet50', 0],
+        #['googlenet', 0], 
+        #['convnext_large', 1536], 
+        #['convnext_small', 768], 
+        #['resnext101_64x4d', 0], 
+        #['efficientnet_v2_l', 1280], 
+        #['vit_h_14', 1280], #does not work  
+        #['regnet_x_32gf', 0], 
+        #['swin_v2_b', 1024],
+        #['inception_v3',0]
+        #]
 
     test_log_count = 0 # Needed to display all five datasets
 
     if MLP_OPT: print('MLP is activated')
     # Used for grid search
-    size_array = [img_size]#, 1440 ,1760]
+    size = img_size#, 1440 ,1760]
     
     # Used for precent test
-    '''
+    
     for size in range(0,100,5): #!
         if size == 0: size =1
         crop_perc = size/100 #!
-    '''
+    
     # Used for fixed bounding_box
-    for size in size_array:
+    #for backbone_name, no_filters in model_specs:
         study = optuna.create_study(direction="maximize")#, pruner=optuna.pruners.MedianPruner())
         study.optimize(objective, n_trials=N_TRIALS, timeout=None)
 
