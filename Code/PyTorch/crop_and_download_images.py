@@ -19,8 +19,7 @@ class crop_download_images():
         if keep_og_size:
             structure_list=[            
             '/Original_images', 
-            '/Original_images/' + coi, 
-            '/Original_images/Others',
+            '/Original_images/All_Images', 
             ]
         else:
             structure_list = [
@@ -37,6 +36,7 @@ class crop_download_images():
         # Used to split up data in Ecklonia and Others
         csv_file_df= pd.read_csv(here + list_name)
         csv_file_df.columns = csv_file_df.columns.str.replace('[.]', '_')
+        csv_file_df = csv_file_df.sort_values(by=['point_media_path_best'])
         empty_prob_list, crop_prob_list, saving_prob_list = [], [], []
         image_path_before = ''
         for index in range(len(csv_file_df.index)):
@@ -87,13 +87,16 @@ class crop_download_images():
         return  int(x0), int(x1), int(y0), int(y1)
 
     def crop_image(self, save_path, csv_file_df, index, bounding_box, empty_prob_list, crop_prob_list):
-        if csv_file_df.label_name[index] == loi:
-            label = coi
+        if keep_og_size:
+            label = 'All_Images'
         else:
-            label = 'Others'
-        #create name for the cropped image
-        
-        cropped_image = []
+            if csv_file_df.label_name[index] == loi:
+                label = coi
+            else:
+                label = 'Others'
+            #create name for the cropped image
+            
+            cropped_image = []
         try:
             # download the image, convert it to a NumPy array, and then read
             # it into OpenCV format
@@ -153,42 +156,6 @@ if __name__ == "__main__":
     #Macroalgal canopy cover
     #Hard coral cover
     #Seagrass cover
-    download_list = [ 
-    #[32,32],
-    #[24,24],
-    #[64,64],
-    #[96,96],
-    #[128,128],
-    #[160,160],
-    #[192,192],
-    #[224,224],
-    #[256,256], 
-    #[288,288],
-    #[299,299],
-    #[304,304],
-    #[336,336],
-    #[368,368],
-    #[400,400],
-    #[432,423],
-    #[464,464],
-    #[496,496], 
-    #[528,528],
-    #[560,560], 
-    #[592,592],
-    #[624,624], 
-    [656,656],
-    [688,688], 
-    [720,720],
-    [752,752],
-    [784,784], 
-    [816,816],
-    [848,848], 
-    [880,880],
-    [912,912],
-    [944,944], 
-    [976,976], 
-    [1008,1008]
-    ]
     download_list = [[299,299]]
     path_list = [
         ['NSW_Broughton','/Annotation_Sets/Test_sets/annotations-u45-leo_kelp_AI_test_broughton_is_NSW-leo_kelp_AI_test_broughton_is_25pts-8152-7652a9b48f0e3186fe5d-dataframe.csv'], 
@@ -203,7 +170,7 @@ if __name__ == "__main__":
         ['Macroalgal canopy cover','Macroalgal_Database' ,'/Annotation_Sets/407756_Macroalgal_canopy_cover_NMSC_list.csv']
         ]
     
-    path_list = [['Ecklonia radiata','Ecklonia_1_to_10_Database_Second' ,'/Annotation_Sets/588335_1_to_10_Ecklonia_radiata_red_list.csv']]
+    path_list = [['Ecklonia radiata','Ecklonia_1_to_10_Database_Test' ,'/Annotation_Sets/588335_1_to_10_Ecklonia_radiata.csv']]
     for bounding_box in download_list:
         for name,database,path in path_list:    
             coi = name
