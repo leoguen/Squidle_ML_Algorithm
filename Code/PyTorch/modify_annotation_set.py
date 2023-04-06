@@ -80,7 +80,7 @@ class modify_annotation_set():
             # Correct class of interest number to all entries
             norm_classes_df[self.coi] = classes_df[self.coi]
             print(norm_classes_df['Ecklonia radiata'])
-            
+
             # If value negative make it 0
             norm_classes_df = norm_classes_df.clip(lower=0)
             return norm_classes_df, classes_df, addi_anno_coi
@@ -169,7 +169,6 @@ class modify_annotation_set():
             csv_file_df = csv_file_df.drop_duplicates()
             print(len(csv_file_df))
         print('Normalized Dataset size: {} with {} classes'.format(csv_file_df.pivot_table(index = [self.row_name], aggfunc ='size').sum(), len(csv_file_df.pivot_table(index = [self.row_name], aggfunc ='size'))))
-        
         csv_file_df.reset_index(drop=True, inplace=True)
         #csv_name = self.coi + '_NMSC'
         self.save_csv(csv_file_df, self.coi.replace(' ', '_')  + '_NMSC')
