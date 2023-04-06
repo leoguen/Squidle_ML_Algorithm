@@ -96,7 +96,7 @@ class crop_download_images():
                 label = 'Others'
             #create name for the cropped image
             
-            cropped_image = []
+        cropped_image = []
         try:
             # download the image, convert it to a NumPy array, and then read
             # it into OpenCV format
@@ -113,7 +113,8 @@ class crop_download_images():
                 x0, x1, y0, y1 = self.get_crop_points(x, y, original_image, bounding_box)
                 # crop around coordinates
                 #int(y-(bounding_box[0]/2)):int(y+(bounding_box[0]/2)), int(x-(bounding_box[1]/2)):int(x+(bounding_box[1]/2))
-                if keep_og_size:cropped_image = original_image
+                if keep_og_size:
+                    cropped_image = original_image
                 else:
                     cropped_image = original_image[y0:y1, x0:x1]
 
@@ -127,6 +128,7 @@ class crop_download_images():
         except: # Some problem was raised while handling the image
             print('General problem with cropping ID: {}'.format(index))
             crop_prob_list.append([(index+2), csv_file_df.point_media_path_best[index]])
+        
         if keep_og_size:
             #print(csv_file_df.point_media_path_best[index])
             if '.jpg/' in csv_file_df.point_media_path_best[index]:
@@ -170,7 +172,10 @@ if __name__ == "__main__":
         ['Macroalgal canopy cover','Macroalgal_Database' ,'/Annotation_Sets/407756_Macroalgal_canopy_cover_NMSC_list.csv']
         ]
     
-    path_list = [['Ecklonia radiata','Ecklonia_1_to_10_Database_Test' ,'/Annotation_Sets/588335_1_to_10_Ecklonia_radiata.csv']]
+    path_list = [['Ecklonia radiata','Final_Eck_1_to_1_neighbour_Database' ,'/Annotation_Sets/Final_Sets/164161_1_to_1_neighbour_Ecklonia_radiata.csv'], 
+                ['Ecklonia radiata','Final_Eck_1_to_10_Database' ,'/Annotation_Sets/Final_Sets/680037_1_to_10_Ecklonia_radiata.csv'], 
+                ['Ecklonia radiata','Final_Eck_1_to_1_Database' ,'/Annotation_Sets/Final_Sets/123235_1_to_1_Ecklonia_radiata.csv']]
+
     for bounding_box in download_list:
         for name,database,path in path_list:    
             coi = name

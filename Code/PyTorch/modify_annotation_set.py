@@ -196,7 +196,7 @@ if __name__ == "__main__":
     
     here = os.path.dirname(os.path.abspath(__file__))
     print('Loading CSV file, this may take a while.')
-    list_name = '/Annotation_Sets/731_Full_Annotation_List_NMSC.csv'
+    list_name = '/Annotation_Sets/737_Full_Annotation_List.csv'
     csv_file_df= pd.read_csv(here + list_name, on_bad_lines='skip', low_memory=False) 
     
     print('Loaded {} entries with filename: {}'.format(len(csv_file_df.index), list_name))
