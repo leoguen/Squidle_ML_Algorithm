@@ -50,8 +50,8 @@ class create_csv_list():
     '''
     def get_annotation_set(self, API_TOKEN, URL,  id_list, HERE):
         # Create .csv file to append to 
-        anno_name = '/Annotation_Sets/731_Full_Annotation_List_NMSC.csv'
-        prob_name = '/Annotation_Sets/731_Problem_Files_NMSC_Annotation_List.csv'
+        anno_name = '/Annotation_Sets/737_Full_Annotation_List.csv'
+        prob_name = '/Annotation_Sets/737_Problem_Files_Annotation_List.csv'
         
         with open(HERE + anno_name, 'w') as creating_new_csv_file: 
             pass
@@ -76,7 +76,10 @@ class create_csv_list():
                     #print(df.head(0))
                 
                 try:
-                    df = df[['label.id', 'label.name', 'label.uuid', 'point.id','point.media.deployment.campaign.key' , 'point.media.path_best', 'point.x', 'point.y', 'tag_names', 'label.translated.id','label.translated.lineage_names', 'label.translated.name','label.translated.translation_info','label.translated.uuid' ]]
+                    if bool_translation:
+                        df = df[['label.id', 'label.name', 'label.uuid', 'point.id','point.media.deployment.campaign.key' , 'point.media.path_best', 'point.x', 'point.y', 'tag_names', 'label.translated.id','label.translated.lineage_names', 'label.translated.name','label.translated.translation_info','label.translated.uuid' ]]
+                    else: 
+                        df = df[['label.id', 'label.name', 'label.uuid', 'point.id','point.media.deployment.campaign.key' , 'point.media.path_best', 'point.x', 'point.y', 'tag_names']]
                 except:
                     print("Problem with annotationset {}, will be skipped".format(id))
                     print(df.head(0))
@@ -102,6 +105,7 @@ class create_csv_list():
 if __name__ == "__main__":
     URL = "https://squidle.org/api"
     dataset_url = '/annotation_set'
+    bool_translation = False
     HERE = os.path.dirname(os.path.abspath(__file__))
     data = create_csv_list()
     API_TOKEN = data.load_token(HERE)
