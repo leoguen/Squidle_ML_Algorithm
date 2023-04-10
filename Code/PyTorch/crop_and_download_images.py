@@ -8,7 +8,44 @@ import numpy as np
 import re
 
 class crop_download_images():
-    
+
+    def get_downloaded_files(self, dir_path, csv_path):
+        # Load the CSV file into a pandas dataframe
+        df = pd.read_csv(csv_path)
+
+        # Create a pandas dataframe from the .jpg files in save_path
+        jpg_files_df = pd.DataFrame({'filename': [f for f in os.listdir(dir_path) if f.endswith('.jpg')]})
+
+        # Drop duplicates in the jpg_files_df based on the media_path column
+        df.drop_duplicates(subset=['point_media_path_best'], inplace=True)
+        df['filename'] = None
+        df = df.reset_index(drop=True)
+        for index in range(len(df)):
+            print(f'{index}/{len(df)}', end='\r')
+
+            if '.jpg/' in df.point_media_path_best[index]:
+                second_part = str(re.sub(".*/(.*).jpg/", "\\1", df.point_media_path_best[index])) 
+            elif '.jpg' in df.point_media_path_best[index]:
+                second_part = str(re.sub(".*/(.*).jpg", "\\1", df.point_media_path_best[index]))
+            elif '.JPG/' in df.point_media_path_best[index]:
+                second_part = str(re.sub(".*/(.*).JPG/", "\\1", df.point_media_path_best[index])) 
+            elif '.JPG' in df.point_media_path_best[index]:
+                second_part = str(re.sub(".*/(.*).JPG", "\\1", df.point_media_path_best[index])) 
+            else:
+                second_part =str(re.sub(".*/(.*)", "\\1", df.point_media_path_best[index]))
+            df.filename[index] = str(re.sub("\W", "_", df.point_media_deployment_campaign_key[index])) +"-"+ re.sub("\W", "_",second_part)
+        # Combine the campaign key and second part to create the filename
+        #df['filename'] = df['point_media_deployment_campaign_key'].str.replace(r'\W', '_') + '-' + df['second_part'].str.replace(r'\W', '_') + '.jpg'
+
+        # Find the set difference between df['filename'] and jpg_files_df['filename']
+        print(f'The original file has {len(df)} entries.')
+        df = df[~df['filename'].isin(set(jpg_files_df['filename']))]
+        print(f'The residual file has {len(df)} entries.')
+        
+        df.drop_duplicates(subset=['point_media_path_best'], inplace=True)
+        df = df.reset_index(drop=True)
+        return df
+
     def create_directory(save_path, dir_name):    
         if os.path.exists(save_path+dir_name) == True:
             print("The directory already exist, no new directory is going to be created.")
@@ -34,13 +71,15 @@ class crop_download_images():
     
     def download_images(self, save_path, here,bounding_box, list_name):
         # Used to split up data in Ecklonia and Others
-        csv_file_df= pd.read_csv(here + list_name)
+        if isinstance(list_name, str):
+            csv_file_df = pd.read_csv(here + list_name)
+        else:
+            csv_file_df = list_name
         csv_file_df.columns = csv_file_df.columns.str.replace('[.]', '_')
         csv_file_df = csv_file_df.sort_values(by=['point_media_path_best'])
         empty_prob_list, crop_prob_list, saving_prob_list = [], [], []
         image_path_before = ''
         for index in range(len(csv_file_df.index)):
-            
             image_path, cropped_image, empty_prob_list, crop_prob_list = self.crop_image(save_path,csv_file_df, index, bounding_box, empty_prob_list, crop_prob_list)
             #save image 
             if image_path_before == image_path:
@@ -49,7 +88,7 @@ class crop_download_images():
             image_path_before = image_path
             try:
                 cv2.imwrite(image_path, cropped_image)
-                print("{} | {} Saved: {}".format(bounding_box[0], (index+2), image_path))
+                print(f"{bounding_box[0]} | {(index+2)}/{len(csv_file_df.index)} Saved: {image_path}")
             except:
                 print('Problem with saving index {}'.format(index))
                 saving_prob_list.append([(index+2), csv_file_df.point_media_path_best[index]])
@@ -159,12 +198,6 @@ if __name__ == "__main__":
     #Hard coral cover
     #Seagrass cover
     download_list = [[299,299]]
-    path_list = [
-        ['NSW_Broughton','/Annotation_Sets/Test_sets/annotations-u45-leo_kelp_AI_test_broughton_is_NSW-leo_kelp_AI_test_broughton_is_25pts-8152-7652a9b48f0e3186fe5d-dataframe.csv'], 
-        ['VIC_Discoverybay','/Annotation_Sets/Test_sets/annotations-u45-leo_kelp_AI_test_discoverybay_VIC_phylospora-leo_kelp_AI_test_db_phylospora_25pts-8149-7652a9b48f0e3186fe5d-dataframe.csv'],
-        ['TAS_Lanterns','/Annotation_Sets/Test_sets/annotations-u45-leo_kelp_AI_test_lanterns_TAS-leo_kelp_AI_test_lanterns_25pts-8151-7652a9b48f0e3186fe5d-dataframe.csv'], 
-        ['VIC_Prom','/Annotation_Sets/Test_sets/annotations-u45-leo_kelp_AI_test_prom_VIC-leo_kelp_AI_test_prom_25pts-8150-7652a9b48f0e3186fe5d-dataframe.csv'], 
-        ['WA', '/Annotation_Sets/Test_sets/annotations-u45-leo_kelp_SWC_WA_AI_test-leo_kelp_AI_SWC_WA_test_25pts-8148-7652a9b48f0e3186fe5d-dataframe.csv']]
     
     path_list = [
         #['Seagrass cover','Seagrass_Database' ,'/Annotation_Sets/14961_Seagrass_cover_NMSC_list.csv'], 
@@ -172,23 +205,27 @@ if __name__ == "__main__":
         ['Macroalgal canopy cover','Macroalgal_Database' ,'/Annotation_Sets/407756_Macroalgal_canopy_cover_NMSC_list.csv']
         ]
     
-    path_list = [['Ecklonia radiata','Final_Eck_1_to_1_neighbour_Database' ,'/Annotation_Sets/Final_Sets/164161_1_to_1_neighbour_Ecklonia_radiata.csv'], 
-                ['Ecklonia radiata','Final_Eck_1_to_10_Database' ,'/Annotation_Sets/Final_Sets/680037_1_to_10_Ecklonia_radiata.csv'], 
-                ['Ecklonia radiata','Final_Eck_1_to_1_Database' ,'/Annotation_Sets/Final_Sets/123235_1_to_1_Ecklonia_radiata.csv']]
-
+    path_list = [
+        #['Ecklonia radiata','Final_Eck_1_to_10_Database' ,'/Annotation_Sets/Final_Sets/164161_1_to_1_neighbour_Ecklonia_radiata.csv'], 
+        ['Ecklonia radiata','Final_Eck_1_to_10_Database' ,'/Annotation_Sets/Final_Sets/680037_1_to_10_Ecklonia_radiata.csv'], 
+        ['Ecklonia radiata','Final_Eck_1_to_10_Database' ,'/Annotation_Sets/Final_Sets/123235_1_to_1_Ecklonia_radiata.csv']]
+    
+    #path_list = [['Ecklonira radiata', 'Final_Eck_1_to_10_Database/Original_images/All_Images', '/Annotation_Sets/Final_Sets/123235_1_to_1_Ecklonia_radiata_except.csv']]
     for bounding_box in download_list:
-        for name,database,path in path_list:    
+        for name,database,path in path_list:
             coi = name
             loi = name
-            print(bounding_box)
             here = os.path.dirname(os.path.abspath(__file__))
             save_path = '/pvol/' + database
             #save_path = '/pvol/Ecklonia_Database'
             list_name = path
 
             data = crop_download_images()
-
             data.create_directory_structure(save_path)
-            data.download_images(save_path, here, bounding_box, list_name)
+            if keep_og_size: 
+                residual_csv = data.get_downloaded_files(save_path, here+path)
+                data.download_images(save_path, here, bounding_box, residual_csv)
+            else: 
+                data.download_images(save_path, here, bounding_box, list_name)
         if keep_og_size:
             break
