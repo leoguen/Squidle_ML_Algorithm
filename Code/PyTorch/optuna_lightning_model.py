@@ -206,7 +206,7 @@ class KelpClassifier(pl.LightningModule):
     def __init__(self, backbone_name, no_filters, trainer, trial, img_size, batch_size): #dropout, learning_rate, 
         super().__init__()
         # init a pretrained resnet
-        self.csv_test_results = [[],[],[],[],[]]
+        self.csv_test_results = [[],[],[],[],[],[],[],[]]
         self.img_size = img_size
         self.trainer = trainer
         self.pl_module = LightningModule
@@ -437,7 +437,11 @@ def save_test_csv(self):
     'NSW_Broughton', 
     'VIC_Prom',
     'VIC_Discoverybay', 
-    'TAS_Lanterns']
+    'TAS_Lanterns',
+    'Port_Phillip_Heads',
+    'Jervis_Bay',
+    'Gulf_St_Vincent'
+    ]
     
     if crop_perc != 0:
         dir = LOGGER_PATH+LOG_NAME+'/perc_'+str(int(crop_perc*100))+'/' 
@@ -654,21 +658,23 @@ def get_args():
 
     parser.add_argument('--eck_test_perc', metavar='eck_tp', type=float, help='The percentage of ecklonia examples in the test set', default=1.0)
 
-    parser.add_argument('--limit_train_batches', metavar='ltrb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.1) #!
+    parser.add_argument('--limit_train_batches', metavar='ltrb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.01) #!
 
-    parser.add_argument('--limit_val_batches', metavar='lvb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.1) #!
+    parser.add_argument('--limit_val_batches', metavar='lvb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.01) #!
 
     parser.add_argument('--limit_test_batches', metavar='lteb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.5) #!
 
-    parser.add_argument('--epochs', metavar='epochs', type=int, help='The number of epcohs the algorithm trains', default=3) #!
+    parser.add_argument('--epochs', metavar='epochs', type=int, help='The number of epcohs the algorithm trains', default=1) #!
 
     parser.add_argument('--log_path', metavar='log_path', type=str, help='The path where the logger files are saved', default='/pvol/logs/')
 
     parser.add_argument('--log_name', metavar='log_name', type=str, help='Name of the experiment.', default='unnamed')
 
-    parser.add_argument('--img_path', metavar='img_path', type=str, help='Path to the database of images', default='/pvol/Ecklonia_1_to_10_Database/') #/pvol/Seagrass_Database/
+    parser.add_argument('--img_path', metavar='img_path', type=str, help='Path to the database of images', default='/pvol/Final_Eck_1_to_1_neighbour_Database/') #/pvol/Seagrass_Database/
 
-    parser.add_argument('--csv_path', metavar='csv_path', type=str, help='Path to the csv file describing the images', default='/pvol/Ecklonia_1_to_10_Database/Original_images/588335_1_to_10_Ecklonia_radiata.csv')
+    parser.add_argument('--csv_path', metavar='csv_path', type=str, help='Path to the csv file describing the images', default='/pvol/Final_Eck_1_to_1_neighbour_Database/Original_images/164161_1_to_1_neighbour_Ecklonia_radiata_except.csv')
+    #/pvol/Ecklonia_1_to_10_Database/Original_images/588335_1_to_10_Ecklonia_radiata.csv
+    
     #/pvol/Ecklonia_Database/Original_images/106704_normalized_deployment_key_list.csv
     #/pvol/Seagrass_Database/Original_images/14961_Seagrass_cover_NMSC_list.csv
     #/pvol/Ecklonia_1_to_10_Database/Original_images/588335_1_to_10_Ecklonia_radiata_NMSC_list.csv
@@ -955,7 +961,11 @@ def objective(trial: optuna.trial.Trial) -> float:
             '/pvol/Ecklonia_Testbase/NSW_Broughton/Original_images/annotations-u45-leo_kelp_AI_test_broughton_is_NSW-leo_kelp_AI_test_broughton_is_25pts-8152-7652a9b48f0e3186fe5d-dataframe.csv', 
             '/pvol/Ecklonia_Testbase/VIC_Prom/Original_images/annotations-u45-leo_kelp_AI_test_prom_VIC-leo_kelp_AI_test_prom_25pts-8150-7652a9b48f0e3186fe5d-dataframe.csv',
             '/pvol/Ecklonia_Testbase/VIC_Discoverybay/Original_images/annotations-u45-leo_kelp_AI_test_discoverybay_VIC_phylospora-leo_kelp_AI_test_db_phylospora_25pts-8149-7652a9b48f0e3186fe5d-dataframe.csv', 
-            '/pvol/Ecklonia_Testbase/TAS_Lanterns/Original_images/annotations-u45-leo_kelp_AI_test_lanterns_TAS-leo_kelp_AI_test_lanterns_25pts-8151-7652a9b48f0e3186fe5d-dataframe.csv']
+            '/pvol/Ecklonia_Testbase/TAS_Lanterns/Original_images/annotations-u45-leo_kelp_AI_test_lanterns_TAS-leo_kelp_AI_test_lanterns_25pts-8151-7652a9b48f0e3186fe5d-dataframe.csv', 
+            '/pvol/Ecklonia_Testbase/Gulf_St_Vincent/Original_images/Ecklonia_RLS_Gulf St Vincent_2012.csv',
+            '/pvol/Ecklonia_Testbase/Jervis_Bay/Original_images/Ecklonia_RLS_Jervis Bay Marine Park_2015.csv',
+            '/pvol/Ecklonia_Testbase/Port_Phillip_Heads/Original_images/Ecklonia_RLS_Port Phillip Heads_2010.csv'
+            ]
         
         '''
         #Used for Generaldataset
@@ -1020,7 +1030,7 @@ if __name__ == '__main__':
     
     # Used for precent test
     
-    for size in range(0,100,5): #!
+    for size in range(10,24,2): #!
         if size == 0: size =1
         crop_perc = size/100 #!
     

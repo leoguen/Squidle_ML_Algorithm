@@ -16,28 +16,28 @@ img_classes_df = img_names_df.pivot_table(index = ['img_name'], aggfunc ='size')
 print(img_classes_df)
 img_classes_df.to_csv('/home/ubuntu/IMAS/Code/PyTorch/Annotation_Sets/0_compare_sib_classes.csv', header=None, index=True, sep=' ', mode='a')
 '''
+#Define List name and which name to use
+csv_name = '1_to_1_Ecklonia_radiata'
+list_csv = pd.read_csv("/home/ubuntu/Documents/IMAS/Code/PyTorch/Annotation_Sets/Final_Sets/123235_1_to_1_Ecklonia_radiata_except.csv", dtype=str, usecols=['label_name', 'point_media_deployment_campaign_key', 'point_id', 'point_media_path_best'])
 
-list_csv = pd.read_csv("/home/ubuntu/IMAS/Code/PyTorch/Annotation_Sets/Full_Annotation_List_Deployment_Key.csv", dtype=str, usecols=['label.name', 'point.media.deployment.campaign.key'])
-list_csv = list_csv.rename(columns={'label.name': 'label_name', 'point.media.deployment.campaign.key': 'point_media_deployment_campaign_key'})
-classes_df = list_csv.pivot_table(index = ['point_media_deployment_campaign_key'], aggfunc ='size')
-print(classes_df, len(classes_df))
-list_csv = list_csv[list_csv['label_name'].str.contains("Ecklonia radiata")]
-#for i in range(len(list_csv)):
-    #list_csv.label_name[i] = list_csv.label_name[i].replace('[.]', '_').replace('(', '_').replace(')', '_').replace(' ', '_')
-#    list_csv.label_name[i] = re.sub("\W", "_", list_csv.label_name[i])
-    #list_csv.label_name[i].replace(r'\W', '_')
-#print(list_csv.head)
-#label_column = list_csv.loc[:,"label_name"]
-#classes_df = list_csv.groupby(by=["label_name"]).count()
+#Rename the column headers
+#list_csv = list_csv.rename(columns={'label.name': 'label_name', 'point.media.deployment.campaign.key': 'point_media_deployment_campaign_key', 'point.id':'point_id', 'point.media.path_best': 'point_media_path_best'})
+#Create pivot table
+csv_no_eck = list_csv[list_csv["label_name"].str.contains("Ecklonia radiata") == False] 
 
-classes_df = list_csv.pivot_table(index = ['point_media_deployment_campaign_key'], aggfunc ='size')
+print(len(list_csv))
+print(len(csv_no_eck))
+
+#csv_no_eck = list_csv.drop(index='Ecklonia radiata') 
+pivot_df = csv_no_eck.pivot_table(index = ['label_name'], aggfunc ='size')
+pivot_df = pivot_df.sort_values()
+#print(classes_df, len(classes_df))
+
+
 with pd.option_context('display.max_rows', None,
                        'display.max_columns', None,
                        'display.precision', 3,
                        ):
-    print(classes_df)
-#compare_df = pd.concat([img_classes_df, classes_df], axis=1)
-#classes_df = label_column.drop_duplicates()
-#print(classes_df)
-#print(compare_df.shape)
-#compare_df.to_csv('/home/ubuntu/IMAS/Code/PyTorch/Annotation_Sets/test_compare_sib_classes.csv', header=None, index=True, sep=' ', mode='a')
+    print(pivot_df)
+
+pivot_df.to_csv(f'/home/ubuntu/Documents/IMAS/Code/PyTorch/Annotation_Sets/Paper_Data/{csv_name}.csv')
