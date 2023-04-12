@@ -10,16 +10,16 @@ class modify_annotation_set():
 
     def __init__(self):
         self.sibling = False
-        self.red_list = True
+        self.red_list = False
         self.download_non_target_annotations = True
         self.sib_factor = 0.3
-        self.coi = 'Ecklonia radiata' #Class of Interest
+        self.coi = 'Seagrass cover' #Class of Interest
         #Seagrass cover 
         #Macroalgal canopy cover
         #Hard coral cover
         
-        self.row_name = 'label_name'
-        #'label_translated_name'  
+        self.row_name = 'label_translated_name'
+        #'label_name'  
         self.norm_factor = 1
 
     def delete_entries(self, csv_file_df, label, value):
@@ -61,11 +61,11 @@ class modify_annotation_set():
             
             # Get all annotations that belong to that image
             addi_anno_coi = csv_file_df.loc[csv_file_df['point_media_path_best'].isin(coi_no_duplic_path.loc[:,'point_media_path_best'])]
-            print('Number of COI Image realted entries {}'.format(len(addi_anno_coi)))
+            print('Number of COI Image related entries {}'.format(len(addi_anno_coi)))
 
             # Drop the class of interest
             addi_anno_coi = addi_anno_coi.drop(addi_anno_coi[addi_anno_coi[self.row_name] == self.coi].index)
-            print('Number of COI Image realted entries without COI entries {}'.format(len(addi_anno_coi)))
+            print('Number of COI Image related entries without COI entries {}'.format(len(addi_anno_coi)))
             # Get all the labels and amount of entries per label in these additional annotations
             labels_addi = addi_anno_coi.pivot_table(index = [self.row_name], aggfunc ='size')
             
@@ -79,7 +79,6 @@ class modify_annotation_set():
 
             # Correct class of interest number to all entries
             norm_classes_df[self.coi] = classes_df[self.coi]
-            print(norm_classes_df['Ecklonia radiata'])
 
             # If value negative make it 0
             norm_classes_df = norm_classes_df.clip(lower=0)
@@ -148,6 +147,8 @@ class modify_annotation_set():
             print('Processed {} out of {}: {}'.format(counter, len(norm_classes_df), label), end='\r')
             
             remove_n = classes_df[label] - int(amount)
+            if remove_n < 0:
+                remove_n = 0
             csv_except_df = csv_file_df.loc[csv_file_df[self.row_name] == label]
             drop_indices = np.random.choice(csv_except_df.index, remove_n, replace=False)
             csv_file_df = csv_file_df.drop(drop_indices)
@@ -196,7 +197,7 @@ if __name__ == "__main__":
     
     here = os.path.dirname(os.path.abspath(__file__))
     print('Loading CSV file, this may take a while.')
-    list_name = '/Annotation_Sets/737_Full_Annotation_List.csv'
+    list_name = '/Annotation_Sets/Final_Sets/731_Full_Annotation_List_NMSC_Seagrass_modified.csv'
     csv_file_df= pd.read_csv(here + list_name, on_bad_lines='skip', low_memory=False) 
     
     print('Loaded {} entries with filename: {}'.format(len(csv_file_df.index), list_name))

@@ -670,9 +670,9 @@ def get_args():
 
     parser.add_argument('--log_name', metavar='log_name', type=str, help='Name of the experiment.', default='unnamed')
 
-    parser.add_argument('--img_path', metavar='img_path', type=str, help='Path to the database of images', default='/pvol/Final_Eck_1_to_1_neighbour_Database/') #/pvol/Seagrass_Database/
+    parser.add_argument('--img_path', metavar='img_path', type=str, help='Path to the database of images', default='/pvol/Final_Eck_1_to_10_Database/Original_images') #/pvol/Seagrass_Database/
 
-    parser.add_argument('--csv_path', metavar='csv_path', type=str, help='Path to the csv file describing the images', default='/pvol/Final_Eck_1_to_1_neighbour_Database/Original_images/164161_1_to_1_neighbour_Ecklonia_radiata_except.csv')
+    parser.add_argument('--csv_path', metavar='csv_path', type=str, help='Path to the csv file describing the images', default='/pvol/Final_Eck_1_to_10_Database/Original_images/680037_1_to_10_Ecklonia_radiata_except.csv')
     #/pvol/Ecklonia_1_to_10_Database/Original_images/588335_1_to_10_Ecklonia_radiata.csv
     
     #/pvol/Ecklonia_Database/Original_images/106704_normalized_deployment_key_list.csv
@@ -1030,7 +1030,7 @@ if __name__ == '__main__':
     
     # Used for precent test
     
-    for size in range(10,24,2): #!
+    for size in range(5,99,5): #!
         if size == 0: size =1
         crop_perc = size/100 #!
     

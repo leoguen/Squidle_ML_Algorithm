@@ -12,7 +12,8 @@ class crop_download_images():
     def get_downloaded_files(self, dir_path, csv_path):
         # Load the CSV file into a pandas dataframe
         df = pd.read_csv(csv_path)
-
+        if keep_og_size:
+            dir_path = dir_path + '/Original_images/All_Images/'
         # Create a pandas dataframe from the .jpg files in save_path
         jpg_files_df = pd.DataFrame({'filename': [f for f in os.listdir(dir_path) if f.endswith('.jpg')]})
 
@@ -33,7 +34,7 @@ class crop_download_images():
                 second_part = str(re.sub(".*/(.*).JPG", "\\1", df.point_media_path_best[index])) 
             else:
                 second_part =str(re.sub(".*/(.*)", "\\1", df.point_media_path_best[index]))
-            df.filename[index] = str(re.sub("\W", "_", df.point_media_deployment_campaign_key[index])) +"-"+ re.sub("\W", "_",second_part)
+            df.filename[index] = str(re.sub("\W", "_", df.point_media_deployment_campaign_key[index])) +"-"+ re.sub("\W", "_",second_part) + '.jpg'
         # Combine the campaign key and second part to create the filename
         #df['filename'] = df['point_media_deployment_campaign_key'].str.replace(r'\W', '_') + '-' + df['second_part'].str.replace(r'\W', '_') + '.jpg'
 
@@ -205,12 +206,24 @@ if __name__ == "__main__":
         ['Macroalgal canopy cover','Macroalgal_Database' ,'/Annotation_Sets/407756_Macroalgal_canopy_cover_NMSC_list.csv']
         ]
     
-    path_list = [
-        #['Ecklonia radiata','Final_Eck_1_to_10_Database' ,'/Annotation_Sets/Final_Sets/164161_1_to_1_neighbour_Ecklonia_radiata.csv'], 
-        ['Ecklonia radiata','Final_Eck_1_to_10_Database' ,'/Annotation_Sets/Final_Sets/680037_1_to_10_Ecklonia_radiata.csv'], 
-        ['Ecklonia radiata','Final_Eck_1_to_10_Database' ,'/Annotation_Sets/Final_Sets/123235_1_to_1_Ecklonia_radiata.csv']]
     
-    #path_list = [['Ecklonira radiata', 'Final_Eck_1_to_10_Database/Original_images/All_Images', '/Annotation_Sets/Final_Sets/123235_1_to_1_Ecklonia_radiata_except.csv']]
+
+    path_list = [
+        #['Seagrass cover', 'NMSC_Testbase/Seagrass_Port_Phillip_2017', '/Annotation_Sets/Final_Sets/Seagrass_RLS_Port Phillip Bay_2017.csv'], 
+        #['Seagrass cover', 'NMSC_Testbase/Seagrass_Port_Phillip_2016', '/Annotation_Sets/Final_Sets/Seagrass_RLS_Port Phillip Bay_2016.csv'],
+        ['Seagrass cover', 'NMSC_Testbase/Seagrass_Port_Phillip_2010', '/Annotation_Sets/Final_Sets/Seagrass_RLS_Port Phillip Heads_2010.csv'],
+        ['Macroalgal cover', 'NMSC_Testbase/Macroalgal_Gulf', '/Annotation_Sets/Final_Sets/Macroalgal_RLS_Gulf St Vincent_2012.csv'],
+        ['Macroalgal cover', 'NMSC_Testbase/Marcoalgal_Jervis', '/Annotation_Sets/Final_Sets/Macroalgal_RLS_Jervis Bay Marine Park_2015.csv'],
+        ['Macroalgal cover', 'NMSC_Testbase/Macroalgal_Port_Phillip', '/Annotation_Sets/Final_Sets/Macroalgal_RLS_Port Phillip Bay_2017.csv'],
+        ['Hardcoral cover', 'NMSC_Testbase/Hardcoral_Queensland', '/Annotation_Sets/Final_Sets/Hardcoral_RLS_Queensland (other)_2015.csv'],
+        ['Hardcoral cover', 'NMSC_Testbase/Hardcoral_Norfolk', '/Annotation_Sets/Final_Sets/Hardcoral_RLS_Norfolk Island_2013.csv'],
+        ['Hardcoral cover', 'NMSC_Testbase/Hardcoral_Ningaloo', '/Annotation_Sets/Final_Sets/Hardcoral_RLS_Ningaloo Marine Park_2016.csv']]
+    
+    path_list = [
+        ['Ecklonia radiata', 'Final_Eck_1_to_10_Database', '/Annotation_Sets/Final_Sets/405405_neighbour_Macroalgal_canopy_cover_NMSC_list.csv'],
+        ['Ecklonia radiata', 'Final_Eck_1_to_10_Database', '/Annotation_Sets/Final_Sets/205282_neighbour_Hard_coral_cover_NMSC_list.csv'],
+        ['Ecklonia radiata', 'Final_Eck_1_to_10_Database', '/Annotation_Sets/Final_Sets/22754_neighbour_Seagrass_cover_NMSC_list.csv']]
+
     for bounding_box in download_list:
         for name,database,path in path_list:
             coi = name
