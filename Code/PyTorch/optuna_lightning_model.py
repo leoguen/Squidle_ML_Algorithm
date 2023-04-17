@@ -674,7 +674,7 @@ def get_args():
 
     parser.add_argument('--csv_path', metavar='csv_path', type=str, help='Path to the csv file describing the images', default='/pvol/Final_Eck_1_to_10_Database/Original_images/680037_1_to_10_Ecklonia_radiata_except.csv')
     #/pvol/Ecklonia_1_to_10_Database/Original_images/588335_1_to_10_Ecklonia_radiata.csv
-    
+    #/pvol/Final_Eck_1_to_10_Database/Original_images/123235_1_to_1_Ecklonia_radiata_except.csv
     #/pvol/Ecklonia_Database/Original_images/106704_normalized_deployment_key_list.csv
     #/pvol/Seagrass_Database/Original_images/14961_Seagrass_cover_NMSC_list.csv
     #/pvol/Ecklonia_1_to_10_Database/Original_images/588335_1_to_10_Ecklonia_radiata_NMSC_list.csv
@@ -1030,12 +1030,13 @@ if __name__ == '__main__':
     
     # Used for precent test
     
-    for size in range(5,99,5): #!
+    for size in range(img_size,99,5): #!
         if size == 0: size =1
         crop_perc = size/100 #!
     
     # Used for fixed bounding_box
     #for backbone_name, no_filters in model_specs:
+    
         study = optuna.create_study(direction="maximize")#, pruner=optuna.pruners.MedianPruner())
         study.optimize(objective, n_trials=N_TRIALS, timeout=None)
 
