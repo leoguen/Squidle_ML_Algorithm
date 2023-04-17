@@ -1020,7 +1020,7 @@ if __name__ == '__main__':
         #['regnet_x_32gf', 0], 
         #['swin_v2_b', 1024],
         #['inception_v3',0]
-        #]
+        #] ADD ONE MORE SO THAT 10 Models
 
     test_log_count = 0 # Needed to display all five datasets
 
