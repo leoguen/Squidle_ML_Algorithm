@@ -1,0 +1,6 @@
+-r sqapi/requirements.txt
+tensorflow
+#tensorflow-macos
+keras
+Pillow
+opencv-python

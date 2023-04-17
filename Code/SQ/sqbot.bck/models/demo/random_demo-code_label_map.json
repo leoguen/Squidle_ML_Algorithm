@@ -1,0 +1,5 @@
+{
+  "ECK": [{"or":[{"name":"vocab_elements","op":"any","val":{"name":"key","op":"eq","val":"214344"}},{"name":"vocab_elements","op":"any","val":{"name":"key","op":"eq","val":"54079009"}}]}],
+  "ASC": [{"name":"name","op":"ilike","val":"%25ascidians%25"},{"name":"parent","op":"has","val":{"name":"name","op":"ilike","val":"%25biota%25"}}],
+  "SUB": [{"name":"name","op":"ilike","val":"%25substrate%25"},{"name":"parent","op":"has","val":{"name":"name","op":"ilike","val":"%25physical%25"}}]
+}

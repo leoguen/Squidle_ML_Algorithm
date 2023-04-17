@@ -1,0 +1,6 @@
+requests        # for HTTP requests
+pick            # for CLI UI
+parse           # for parsing of strings
+pandas          # for lots of things
+prompt_toolkit  # for getting user input
+pygments        # for syntax highlighting
