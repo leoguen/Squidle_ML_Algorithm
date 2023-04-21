@@ -538,6 +538,7 @@ def plot_confusion_matrix(self):
     tensorboard.add_image('Confusion Matrix Test' , data, path_label, dataformats='HWC')
 
     plt.close()
+    #test
 
 
 def get_crop_points(self, x, y, original_image, img_size):
