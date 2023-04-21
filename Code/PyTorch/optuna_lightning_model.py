@@ -88,8 +88,6 @@ class CSV_Dataset(Dataset):
         x_perc = (x-x0)/(x1-x0)
         y_perc = (y-y0)/(y1-y0)
         x_crop_size, y_crop_size = cropped_img.size
-        x_crop =  x_perc
-        y_crop =  y_perc
         if self.inception:
             if self.test_indicator: 
                 train_transforms = transforms.Compose([
@@ -167,7 +165,7 @@ class CSV_Dataset(Dataset):
             ])
         img_tensor = train_transforms(cropped_img)
 
-        return img_tensor, class_id , x_crop, y_crop
+        return img_tensor, class_id
 
 class GeneralDataset(Dataset):
     def __init__(self, img_size, test_list, test, inception, test_img_path):
@@ -324,8 +322,7 @@ class KelpClassifier(pl.LightningModule):
                 #shutil.rmtree(self.logger.log_dir, ignore_errors=True)
                 #raise optuna.TrialPruned(message) #!
 
-    def forward(self, x, x_crop, y_crop):
-        x_mlp = x
+    def forward(self, x):
         if self.backbone_name == 'inception_v3':
             self.model.eval()
             x = self.model(x)
@@ -334,40 +331,18 @@ class KelpClassifier(pl.LightningModule):
             with torch.no_grad():
                 representations = self.feature_extractor(x).flatten(1)
             x = self.classifier(representations)
-        
-        if MLP_OPT:
-            #! add crop here
-            mlp_model = torch.jit.load(MLP_PATH, map_location='cuda')
-            mlp_model.eval()
-            x_mlp_24 = torch.empty((len(x_mlp),3,24,24), dtype=torch.float32).cuda()
-            for idx in range(len(x_mlp)):
-                x_mlp_24[idx] = transforms.functional.crop(x_mlp[idx], int(y_crop[idx].item()*299) + 12, int(x_crop[idx].item()*299)-12, 24, 24)
-            x_mlp = mlp_model(x_mlp_24)
-            return x, x_mlp
         return x
 
     def training_step(self, batch, batch_idx):
-        try:
-            x, y, x_crop, y_crop = batch
-        except: 
-            x, y = batch
-            x_crop = 0.5 #! Added for GeneralDataset 
-            y_crop = 0.5 #!
-        #x, y = batch
-        metrics, loss, f1_score, top_eck_p,top_class, res_y, prob = analyze_pred(self,x, y, x_crop, y_crop)
+        x, y = batch
+        metrics, loss, f1_score, top_eck_p,top_class, res_y, prob = analyze_pred(self,x, y)
         for i, metric in enumerate(metrics):
             self.training_losses[i].append(metric)
         return loss
     
     def validation_step(self, batch, batch_idx):
-        try:
-            x, y, x_crop, y_crop = batch
-        except: 
-            x, y = batch
-            x_crop = 0.5 #! Added for GeneralDataset 
-            y_crop = 0.5 #!
-        #x, y = batch
-        metrics, loss, f1_score, top_eck_p, top_class, res_y, prob = analyze_pred(self,x, y, x_crop, y_crop)
+        x, y = batch
+        metrics, loss, f1_score, top_eck_p, top_class, res_y, prob = analyze_pred(self,x, y)
         for i, metric in enumerate(metrics):
             self.valid_losses[i].append(metric)
         # only log when not sanity checking
@@ -377,13 +352,8 @@ class KelpClassifier(pl.LightningModule):
         image_to_tb(self, batch, batch_idx, 'train')
     
     def test_step(self, batch, batch_idx):
-        try:
-            x, y, x_crop, y_crop = batch
-        except: 
-            x, y = batch
-            x_crop = 0.5 #! Added for GeneralDataset 
-            y_crop = 0.5 #!
-        metrics, loss, f1_score,top_eck_p, top_class, res_y, prob = analyze_pred(self,x, y, x_crop, y_crop)
+        x, y = batch
+        metrics, loss, f1_score,top_eck_p, top_class, res_y, prob = analyze_pred(self,x, y)
         #metrics=[loss.item(), accuracy.item(), TP, TN, FP, FN]
         for i, metric in enumerate(metrics):
             self.test_losses[i].append(metric)
@@ -463,7 +433,7 @@ class KelpClassifier(pl.LightningModule):
     
     def predict_step(self, batch, batch_idx):
         # This can be used for implementation
-        x, y, x_crop, y_crop = batch
+        x, y = batch
         #x, y = batch
         y_hat = self(x)
         #loss = F.cross_entropy(y_hat, y)
@@ -648,15 +618,9 @@ def get_acc_prec_rec_f1(self, metric):
         f1_score = 2*(precision*recall)/(precision+recall)
     return accuracy, precision, recall, f1_score
 
-def analyze_pred(self,x,y, x_crop, y_crop):
-        if MLP_OPT:
-            y_hat, y_mlp = self(x, x_crop, y_crop)
-            prob = F.softmax(y_hat, dim=1)
-            prob_mlp = F.softmax(y_mlp, dim=1)
-            prob = prob*(1-MLP_PERC) + prob_mlp*MLP_PERC
-        else:
-            y_hat = self(x, x_crop, y_crop)
-            prob = F.softmax(y_hat, dim=1)
+def analyze_pred(self,x,y):
+        y_hat = self(x)
+        prob = F.softmax(y_hat, dim=1)
         loss = F.cross_entropy(y_hat, y)
         top_p, top_class = prob.topk(1, dim = 1)
         # Threshold
@@ -722,17 +686,11 @@ def get_args():
 
     parser.add_argument('--img_path', metavar='img_path', type=str, help='Path to the database of images', default='/pvol/Final_Eck_1_to_10_Database/Original_images') #/pvol/Seagrass_Database/
 
-    parser.add_argument('--csv_path', metavar='csv_path', type=str, help='Path to the csv file describing the images', default='/pvol/Final_Eck_1_to_1_neighbour_Database/Original_images/164161_1_to_1_neighbour_Ecklonia_radiata_except.csv')
+    parser.add_argument('--csv_path', metavar='csv_path', type=str, help='Path to the csv file describing the images', default='/pvol/Final_Eck_1_to_10_Database/Original_images/164161_1_to_1_neighbour_Ecklonia_radiata_except.csv')
     #/pvol/Final_Eck_1_to_10_Database/Original_images/164161_1_to_1_neighbour_Ecklonia_radiata_except.csv
     #/pvol/Final_Eck_1_to_1_neighbour_Database/Original_images/164161_1_to_1_neighbour_Ecklonia_radiata_except.csv
 
     parser.add_argument('--n_trials', metavar='n_trials', type=int, help='Number of trials that Optuna runs for', default=3) #!
-
-    parser.add_argument('--mlp_opt',  help='Defines whether the MLP is activated or not', action='store_true')
-    
-    parser.add_argument('--mlp_perc', metavar='mlp_perc', type=float, help='Defines the weight that is given to the MLP prediction', default=0.3)
-
-    parser.add_argument('--mlp_path', metavar='mlp_path', type=str, help='Path to the MLP model', default='/home/ubuntu/IMAS/Code/PyTorch/models/81_f1_score.pth')
 
     parser.add_argument('--backbone', metavar='backbone', type=str, help='Name of the model which should be used for transfer learning', default='inception_v3')
 
@@ -751,7 +709,7 @@ def get_args():
     
     args =parser.parse_args()
     no_filters = 0
-    return args.percent_valid_examples,args.percent_test_examples, args.eck_test_perc,args.limit_train_batches,args.limit_val_batches,args.limit_test_batches,args.epochs,args.log_path,args.log_name,args.img_path, args.n_trials,args.mlp_opt, args.mlp_perc, args.mlp_path,args.backbone, no_filters, args.real_test, args.test_img_path, args.img_size, args.csv_path, args.crop_perc, args.batch_size, args.label_name
+    return args.percent_valid_examples,args.percent_test_examples, args.eck_test_perc,args.limit_train_batches,args.limit_val_batches,args.limit_test_batches,args.epochs,args.log_path,args.log_name,args.img_path, args.n_trials,args.backbone, no_filters, args.real_test, args.test_img_path, args.img_size, args.csv_path, args.crop_perc, args.batch_size, args.label_name
 
 def log_to_graph(self, value, var, name ,global_step):
     self.logger.experiment.add_scalars(var, {name: value},global_step)
@@ -877,7 +835,8 @@ def objective(trial: optuna.trial.Trial) -> float:
     ###############
     # Optuna Params
     ###############
-    global RandomEqualize, RandomRotation, RandomErasing, RandomPerspective, RandomAffine, RandomVerticalFlip, RandomHorizontalFlip, RandomInvert, ColorJitter, ElasticTransform, RandomAutocontrast, RandomGrayscale,optuna_transforms
+    global RandomEqualize, RandomRotation, RandomErasing, RandomPerspective, RandomAffine, RandomVerticalFlip, RandomHorizontalFlip, RandomInvert, ColorJitter, ElasticTransform, RandomAutocontrast, RandomGrayscale
+    '''
     RandomEqualize = trial.suggest_categorical("RandomEqualize", [True,False])
     RandomRotation = trial.suggest_categorical("RandomRotation", [True,False])
     RandomErasing = trial.suggest_categorical("RandomErasing", [True,False])
@@ -890,24 +849,18 @@ def objective(trial: optuna.trial.Trial) -> float:
     ElasticTransform = trial.suggest_categorical("ElasticTransform", [True,False])
     RandomAutocontrast = trial.suggest_categorical("RandomAutocontrast", [True,False])
     RandomGrayscale = trial.suggest_categorical("RandomGrayscale", [True,False])
-    optuna_transforms = [RandomEqualize,True , RandomRotation, RandomErasing, RandomPerspective, RandomAffine, RandomVerticalFlip, RandomHorizontalFlip, RandomInvert, ColorJitter, ElasticTransform, RandomAutocontrast, RandomGrayscale, True, True, True]
+    '''
     RandomEqualize, RandomRotation, RandomErasing, RandomPerspective, RandomAffine, RandomVerticalFlip, RandomHorizontalFlip, RandomInvert, ColorJitter, ElasticTransform, RandomAutocontrast, RandomGrayscale = False, False, False, False, False, False, False, False, False, False, False, False, 
     #dropout = trial.suggest_float("dropout", 0.2, 0.5)
     #trial.suggest_int("batchsize", 8, 128)
-    '''
     LEARNING_RATE = trial.suggest_float(
-        "learning_rate_init", 1e-8, 1e-1, log=True
+        "learning_rate_init", 1e-6, 1e-2, log=True
     ) #min needs to be 1e-6
-    ''' 
     #LEARNING_RATE = 0.0000050000
     global optimizer_name
-    #optimizer_name = trial.suggest_categorical("optimizer", ['Adam', 'Adagrad', 'Adadelta', 'Adamax', 'AdamW', 'ASGD', 'NAdam', 'RAdam', 'RMSprop', 'Rprop', 'SGD'])
-    optimizer_name = 'Adam'
-    global rvf_perc, rhf_perc, rauto_perc, requa_perc, rbright_perc, rhue_perc
-    if MLP_OPT:
-        global MLP_PERC 
-        MLP_PERC = trial.suggest_float("mlp_perc", 0, 1) 
-    
+    optimizer_name = trial.suggest_categorical("optimizer", ['Adam', 'Adagrad', 'Adadelta', 'Adamax', 'AdamW', 'ASGD', 'NAdam', 'RAdam', 'RMSprop', 'Rprop', 'SGD'])
+    #optimizer_name = 'Adam'
+
     global threshold
     #threshold = trial.suggest_float("threshold", 0.5, 1)
     threshold = 0.5
@@ -985,21 +938,13 @@ def objective(trial: optuna.trial.Trial) -> float:
             optimizer_name = optimizer_name,
             learning_rate=model.hparams.learning_rate, #LEARNING_RATE, 
             backbone = backbone_name,
-            #batchsize = model.batch_size,
-            #rvf_perc = rvf_perc, 
-            #rhf_perc = rhf_perc, 
-            #rauto_perc = rauto_perc, 
-            #requa_perc=requa_perc, 
-            #rbright_perc=rbright_perc, 
-            #lrhue_perc=rhue_perc, 
+            #batchsize = model.batch_size, 
             threshold = threshold,
             f1_score = trainer.callback_metrics["f1_score"].item())
     if crop_perc != 0:
         hyperparameters['crop_perc']=crop_perc
     else:
-        hyperparameters['image_size']= img_size
-    if MLP_OPT:
-        hyperparameters['mlp_percentage']=MLP_PERC 
+        hyperparameters['image_size']= img_size 
     if not(real_test):
         hyperparameters['test_perc'] = PERCENT_TEST_EXAMPLES 
         hyperparameters['eck_test_perc'] = ECK_TEST_PERC
@@ -1060,7 +1005,7 @@ def objective(trial: optuna.trial.Trial) -> float:
     return f1_score_end
 
 if __name__ == '__main__':
-    PERCENT_VALID_EXAMPLES, PERCENT_TEST_EXAMPLES, ECK_TEST_PERC, LIMIT_TRAIN_BATCHES, LIMIT_VAL_BATCHES, LIMIT_TEST_BATCHES, EPOCHS, LOGGER_PATH, LOG_NAME, IMG_PATH, N_TRIALS, MLP_OPT, MLP_PERC, MLP_PATH, backbone_name, no_filters, real_test, test_img_path, img_size, csv_path, crop_perc, batch_size, label_name = get_args()
+    PERCENT_VALID_EXAMPLES, PERCENT_TEST_EXAMPLES, ECK_TEST_PERC, LIMIT_TRAIN_BATCHES, LIMIT_VAL_BATCHES, LIMIT_TEST_BATCHES, EPOCHS, LOGGER_PATH, LOG_NAME, IMG_PATH, N_TRIALS, backbone_name, no_filters, real_test, test_img_path, img_size, csv_path, crop_perc, batch_size, label_name = get_args()
 
     one_word_label = 'One_Word_Label_Not_Defined'
     if label_name == 'Ecklonia radiata':
@@ -1086,11 +1031,10 @@ if __name__ == '__main__':
         ['inception_v3',0]
         ] 
     
-    model_specs = [['inception_v3',0]]
+    #model_specs = [['inception_v3',0]]
 
     test_log_count = 0 # Needed to display all five datasets
 
-    if MLP_OPT: print('MLP is activated')
     
     # Used for precent test
     
@@ -1114,7 +1058,7 @@ if __name__ == '__main__':
         for key, value in trial.params.items():
             print("    {}: {}".format(key, value))
 
-        importance_dict = optuna.importance.get_param_importances(study)
-        print(importance_dict)
+        #importance_dict = optuna.importance.get_param_importances(study)
+        #print(importance_dict)
         
     #cli_main()
