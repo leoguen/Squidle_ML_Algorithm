@@ -77,8 +77,8 @@ class CSV_Dataset(Dataset):
         #print(img.size)
         x_img, y_img = img.size
         loc_img_size = img_size
-        if crop_perc != 0:
-            loc_img_size = int((x_img + y_img)/2 * crop_perc)
+        if crop_perc != 0: #Added +2 here to make up for centercrop as part of
+            loc_img_size = int((x_img + y_img)/2 * (crop_perc+0.02))
         x = x_img*x #Center position
         y = y_img*y #Center position
         
@@ -93,6 +93,7 @@ class CSV_Dataset(Dataset):
         if self.inception:
             if self.test_indicator: 
                 train_transforms = transforms.Compose([
+                transforms.CenterCrop([int(y_crop_size*0.9), int(x_crop_size*0.9)]),
                 transforms.Resize((299, 299)),
                 transforms.ToTensor(), # ToTensor : [0, 255] -> [0, 1]
                 transforms.Normalize(
@@ -100,17 +101,63 @@ class CSV_Dataset(Dataset):
                     std=[0.229, 0.224, 0.225]),
                 ])
             else:
+
+                train_transforms = transforms.Compose([])
+                
+                if RandomEqualize:
+                    train_transforms.transforms.append(transforms.RandomEqualize(p=0.1))
+                
+                train_transforms.transforms.append(transforms.ToTensor())# ToTensor : [0, 255] -> [0, 1]
+
+                if RandomRotation:
+                    train_transforms.transforms.append(transforms.RandomRotation(degrees=(-20, 20)))
+                if RandomErasing:
+                    train_transforms.transforms.append(transforms.RandomErasing(p=0.1))
+                if RandomPerspective:
+                    train_transforms.transforms.append(transforms.RandomPerspective(p=0.1, distortion_scale=0.3))
+                if RandomAffine:
+                    train_transforms.transforms.append(transforms.RandomAffine( degrees=(-20, 20), translate=(0.1, 0.15), scale=(0.9, 1.2)))
+                if RandomVerticalFlip:
+                    train_transforms.transforms.append(transforms.RandomVerticalFlip(p=0.1))
+                if RandomHorizontalFlip:
+                    train_transforms.transforms.append(transforms.RandomHorizontalFlip(p=0.1))
+                if RandomInvert:
+                    train_transforms.transforms.append(transforms.RandomInvert(p=0.1))
+                if ColorJitter:
+                    train_transforms.transforms.append(transforms.ColorJitter(brightness=0.2, hue=0.0, saturation=0.2, contrast=0.2))
+                if ElasticTransform:
+                    train_transforms.transforms.append(transforms.ElasticTransform(alpha=120.0))
+                if RandomAutocontrast:
+                    train_transforms.transforms.append(transforms.RandomAutocontrast(p=0.1))
+                if RandomGrayscale:
+                    train_transforms.transforms.append(transforms.RandomGrayscale(p=0.1))
+                    
+                train_transforms.transforms.append(transforms.CenterCrop([int(x_crop_size*0.9), int(y_crop_size*0.9)]))
+                train_transforms.transforms.append(transforms.Resize((299, 299)))
+                train_transforms.transforms.append(transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]))
+
+                '''
                 train_transforms = transforms.Compose([
-                transforms.Resize((299, 299)),
+                transforms.RandomEqualize(p=1.0),
+                transforms.ToTensor(), # ToTensor : [0, 255] -> [0, 1]
+                #Test what happens if resize last step
+                transforms.RandomRotation(degrees=(-20, 20)),
+                transforms.RandomErasing(),
+                transforms.RandomPerspective(distortion_scale=0.3),
+                transforms.RandomAffine(degrees=(-20, 20), translate=(0.1, 0.15), scale=(0.9, 1.2)),
                 transforms.RandomVerticalFlip(p=0.5),
                 transforms.RandomHorizontalFlip(p=0.5),
-                #transforms.RandomAutocontrast(p=0.5),
-                #transforms.RandomEqualize(p=0.4),
-                #transforms.ColorJitter(brightness=0.5, hue=0.2),
-                transforms.ToTensor(), # ToTensor : [0, 255] -> [0, 1]
+                transforms.RandomInvert(),
+                transforms.ColorJitter(brightness=0.2, hue=0.0, saturation=0.2, contrast=0.2),
+                transforms.ElasticTransform(alpha=120.0),
+                transforms.RandomAutocontrast(),
+                transforms.RandomGrayscale(),
+                transforms.CenterCrop([int(x_crop_size*0.9), int(y_crop_size*0.9)]),
+                transforms.Resize((299, 299)), 
                 transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                     std=[0.229, 0.224, 0.225]),
                 ])
+                '''
         else:
             train_transforms = transforms.Compose([
             transforms.Resize((299, 299)),
@@ -490,6 +537,8 @@ def plot_confusion_matrix(self):
     tensorboard = self.logger.experiment
     tensorboard.add_image('Confusion Matrix Test' , data, path_label, dataformats='HWC')
 
+    plt.close()
+
 
 def get_crop_points(self, x, y, original_image, img_size):
     x_img, y_img = original_image.size
@@ -672,14 +721,11 @@ def get_args():
 
     parser.add_argument('--img_path', metavar='img_path', type=str, help='Path to the database of images', default='/pvol/Final_Eck_1_to_10_Database/Original_images') #/pvol/Seagrass_Database/
 
-    parser.add_argument('--csv_path', metavar='csv_path', type=str, help='Path to the csv file describing the images', default='/pvol/Final_Eck_1_to_10_Database/Original_images/680037_1_to_10_Ecklonia_radiata_except.csv')
-    #/pvol/Ecklonia_1_to_10_Database/Original_images/588335_1_to_10_Ecklonia_radiata.csv
-    #/pvol/Final_Eck_1_to_10_Database/Original_images/123235_1_to_1_Ecklonia_radiata_except.csv
-    #/pvol/Ecklonia_Database/Original_images/106704_normalized_deployment_key_list.csv
-    #/pvol/Seagrass_Database/Original_images/14961_Seagrass_cover_NMSC_list.csv
-    #/pvol/Ecklonia_1_to_10_Database/Original_images/588335_1_to_10_Ecklonia_radiata_NMSC_list.csv
+    parser.add_argument('--csv_path', metavar='csv_path', type=str, help='Path to the csv file describing the images', default='/pvol/Final_Eck_1_to_1_neighbour_Database/Original_images/164161_1_to_1_neighbour_Ecklonia_radiata_except.csv')
+    #/pvol/Final_Eck_1_to_10_Database/Original_images/164161_1_to_1_neighbour_Ecklonia_radiata_except.csv
+    #/pvol/Final_Eck_1_to_1_neighbour_Database/Original_images/164161_1_to_1_neighbour_Ecklonia_radiata_except.csv
 
-    parser.add_argument('--n_trials', metavar='n_trials', type=int, help='Number of trials that Optuna runs for', default=1) #!
+    parser.add_argument('--n_trials', metavar='n_trials', type=int, help='Number of trials that Optuna runs for', default=3) #!
 
     parser.add_argument('--mlp_opt',  help='Defines whether the MLP is activated or not', action='store_true')
     
@@ -696,7 +742,7 @@ def get_args():
     parser.add_argument('--img_size', metavar='img_size', type=int, help=
     'Defines the size of the used image.', default=299)
     
-    parser.add_argument('--crop_perc', metavar='crop_perc', type=int, help= 'Defines percentage that is used to crop the image.', default=0.0)
+    parser.add_argument('--crop_perc', metavar='crop_perc', type=int, help= 'Defines percentage that is used to crop the image.', default=0.18)
 
     parser.add_argument('--batch_size', metavar='batch_size', type=int, help= 'Defines batch_size that is used to train algorithm.', default=32) #!
 
@@ -830,6 +876,21 @@ def objective(trial: optuna.trial.Trial) -> float:
     ###############
     # Optuna Params
     ###############
+    global RandomEqualize, RandomRotation, RandomErasing, RandomPerspective, RandomAffine, RandomVerticalFlip, RandomHorizontalFlip, RandomInvert, ColorJitter, ElasticTransform, RandomAutocontrast, RandomGrayscale,optuna_transforms
+    RandomEqualize = trial.suggest_categorical("RandomEqualize", [True,False])
+    RandomRotation = trial.suggest_categorical("RandomRotation", [True,False])
+    RandomErasing = trial.suggest_categorical("RandomErasing", [True,False])
+    RandomPerspective = trial.suggest_categorical("RandomPerspective", [True,False])
+    RandomAffine = trial.suggest_categorical("RandomAffine", [True,False])
+    RandomVerticalFlip = trial.suggest_categorical("RandomVerticalFlip", [True,False])
+    RandomHorizontalFlip = trial.suggest_categorical("RandomHorizontalFlip", [True,False])
+    RandomInvert = trial.suggest_categorical("RandomInvert", [True,False])
+    ColorJitter = trial.suggest_categorical("ColorJitter", [True,False])
+    ElasticTransform = trial.suggest_categorical("ElasticTransform", [True,False])
+    RandomAutocontrast = trial.suggest_categorical("RandomAutocontrast", [True,False])
+    RandomGrayscale = trial.suggest_categorical("RandomGrayscale", [True,False])
+    optuna_transforms = [RandomEqualize,True , RandomRotation, RandomErasing, RandomPerspective, RandomAffine, RandomVerticalFlip, RandomHorizontalFlip, RandomInvert, ColorJitter, ElasticTransform, RandomAutocontrast, RandomGrayscale, True, True, True]
+    RandomEqualize, RandomRotation, RandomErasing, RandomPerspective, RandomAffine, RandomVerticalFlip, RandomHorizontalFlip, RandomInvert, ColorJitter, ElasticTransform, RandomAutocontrast, RandomGrayscale = False, False, False, False, False, False, False, False, False, False, False, False, 
     #dropout = trial.suggest_float("dropout", 0.2, 0.5)
     #trial.suggest_int("batchsize", 8, 128)
     '''
@@ -985,6 +1046,7 @@ def objective(trial: optuna.trial.Trial) -> float:
             # Just looks at one dataset
             test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=60)#os.cpu_count())
             #display_dataloader(test_loader, 'Test Loader'+str(path_label))
+
             trainer.test(ckpt_path='best', dataloaders=test_loader)
     else: 
         test_set = GeneralDataset(img_size, test_list, test = True, inception=inception,test_img_path = test_img_path)
@@ -1008,34 +1070,35 @@ if __name__ == '__main__':
         one_word_label = 'Hardcoral'
     elif label_name == 'Macroalgal canopy cover':
         one_word_label = 'Macroalgal'
-    
-    #model_specs = [
+
+    model_specs = [
+        #['resnet152', 0],
         #['resnet50', 0],
         #['googlenet', 0], 
         #['convnext_large', 1536], 
         #['convnext_small', 768], 
-        #['resnext101_64x4d', 0], 
-        #['efficientnet_v2_l', 1280], 
+        ['resnext101_64x4d', 0], 
+        ['efficientnet_v2_l', 1280], 
         #['vit_h_14', 1280], #does not work  
-        #['regnet_x_32gf', 0], 
-        #['swin_v2_b', 1024],
-        #['inception_v3',0]
-        #] ADD ONE MORE SO THAT 10 Models
+        ['regnet_x_32gf', 0], 
+        ['swin_v2_b', 1024],
+        ['inception_v3',0]
+        ] 
+    
+    model_specs = [['inception_v3',0]]
 
     test_log_count = 0 # Needed to display all five datasets
 
     if MLP_OPT: print('MLP is activated')
-    # Used for grid search
-    size = img_size#, 1440 ,1760]
     
     # Used for precent test
     
-    for size in range(img_size,99,5): #!
-        if size == 0: size =1
-        crop_perc = size/100 #!
+    #for size in range(0,99,5): #!
+    #    if size == 0: size =1
+    #    crop_perc = size/100 #!
     
     # Used for fixed bounding_box
-    #for backbone_name, no_filters in model_specs:
+    for backbone_name, no_filters in model_specs:
     
         study = optuna.create_study(direction="maximize")#, pruner=optuna.pruners.MedianPruner())
         study.optimize(objective, n_trials=N_TRIALS, timeout=None)
@@ -1049,5 +1112,8 @@ if __name__ == '__main__':
         print("  Params: ")
         for key, value in trial.params.items():
             print("    {}: {}".format(key, value))
+
+        importance_dict = optuna.importance.get_param_importances(study)
+        print(importance_dict)
         
     #cli_main()
