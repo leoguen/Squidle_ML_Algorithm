@@ -130,7 +130,7 @@ class CSV_Dataset(Dataset):
                 if RandomGrayscale:
                     train_transforms.transforms.append(transforms.RandomGrayscale(p=0.1))
                     
-                train_transforms.transforms.append(transforms.CenterCrop([int(x_crop_size*0.9), int(y_crop_size*0.9)]))
+                train_transforms.transforms.append(transforms.CenterCrop([int(y_crop_size*0.9), int(x_crop_size*0.9)]))
                 train_transforms.transforms.append(transforms.Resize((299, 299)))
                 train_transforms.transforms.append(transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]))
 
@@ -682,7 +682,7 @@ def get_args():
 
     parser.add_argument('--log_path', metavar='log_path', type=str, help='The path where the logger files are saved', default='/pvol/logs/')
 
-    parser.add_argument('--log_name', metavar='log_name', type=str, help='Name of the experiment.', default='unnamed')
+    parser.add_argument('--log_name', metavar='log_name', type=str, help='Name of the experiment.', default='unnamed_crossvalidation')
 
     parser.add_argument('--img_path', metavar='img_path', type=str, help='Path to the database of images', default='/pvol/Final_Eck_1_to_10_Database/Original_images') #/pvol/Seagrass_Database/
 
@@ -690,7 +690,7 @@ def get_args():
     #/pvol/Final_Eck_1_to_10_Database/Original_images/164161_1_to_1_neighbour_Ecklonia_radiata_except.csv
     #/pvol/Final_Eck_1_to_1_neighbour_Database/Original_images/164161_1_to_1_neighbour_Ecklonia_radiata_except.csv
 
-    parser.add_argument('--n_trials', metavar='n_trials', type=int, help='Number of trials that Optuna runs for', default=3) #!
+    parser.add_argument('--n_trials', metavar='n_trials', type=int, help='Number of trials that Optuna runs for', default=1) #!
 
     parser.add_argument('--backbone', metavar='backbone', type=str, help='Name of the model which should be used for transfer learning', default='inception_v3')
 
@@ -706,10 +706,12 @@ def get_args():
     parser.add_argument('--batch_size', metavar='batch_size', type=int, help= 'Defines batch_size that is used to train algorithm.', default=32) #!
 
     parser.add_argument('--label_name', metavar='label_name', type=str, help='Name of the label used in the csv file', default='Ecklonia radiata') #Seagrass cover
+
+    parser.add_argument('--cross_validation', metavar='cross_validation', type=int, help= 'Defines how many sets the dataset is going to be divided in for cross validation.', default=5) #!
     
     args =parser.parse_args()
     no_filters = 0
-    return args.percent_valid_examples,args.percent_test_examples, args.eck_test_perc,args.limit_train_batches,args.limit_val_batches,args.limit_test_batches,args.epochs,args.log_path,args.log_name,args.img_path, args.n_trials,args.backbone, no_filters, args.real_test, args.test_img_path, args.img_size, args.csv_path, args.crop_perc, args.batch_size, args.label_name
+    return args.percent_valid_examples,args.percent_test_examples, args.eck_test_perc,args.limit_train_batches,args.limit_val_batches,args.limit_test_batches,args.epochs,args.log_path,args.log_name,args.img_path, args.n_trials,args.backbone, no_filters, args.real_test, args.test_img_path, args.img_size, args.csv_path, args.crop_perc, args.batch_size, args.label_name, args.cross_validation
 
 def log_to_graph(self, value, var, name ,global_step):
     self.logger.experiment.add_scalars(var, {name: value},global_step)
@@ -853,13 +855,16 @@ def objective(trial: optuna.trial.Trial) -> float:
     RandomEqualize, RandomRotation, RandomErasing, RandomPerspective, RandomAffine, RandomVerticalFlip, RandomHorizontalFlip, RandomInvert, ColorJitter, ElasticTransform, RandomAutocontrast, RandomGrayscale = False, False, False, False, False, False, False, False, False, False, False, False, 
     #dropout = trial.suggest_float("dropout", 0.2, 0.5)
     #trial.suggest_int("batchsize", 8, 128)
+    '''
     LEARNING_RATE = trial.suggest_float(
         "learning_rate_init", 1e-6, 1e-2, log=True
     ) #min needs to be 1e-6
     #LEARNING_RATE = 0.0000050000
-    global optimizer_name
+    
     optimizer_name = trial.suggest_categorical("optimizer", ['Adam', 'Adagrad', 'Adadelta', 'Adamax', 'AdamW', 'ASGD', 'NAdam', 'RAdam', 'RMSprop', 'Rprop', 'SGD'])
-    #optimizer_name = 'Adam'
+    '''
+    global optimizer_name
+    optimizer_name = 'Adam'
 
     global threshold
     #threshold = trial.suggest_float("threshold", 0.5, 1)
@@ -885,6 +890,17 @@ def objective(trial: optuna.trial.Trial) -> float:
     
     global training_set, validation_set
     training_set, validation_set = torch.utils.data.random_split(train_val_set,[0.90, 0.10], generator=torch.Generator().manual_seed(423))
+    if cross_validation != 0:
+        train_index = [0,1,2,3,4]
+        train_index.remove(cross_counter)
+        cross_sets = []*cross_validation
+        cross_sets = torch.utils.data.random_split(train_val_set,[0.2,0.2,0.2,0.2,0.2], generator=torch.Generator().manual_seed(423))
+        validation_set = cross_sets[cross_counter]
+        #cross_sets = cross_sets.pop(cross_counter)
+
+        training_set = torch.utils.data.ConcatDataset([cross_sets[train_index[0]],cross_sets[train_index[1]], cross_sets[train_index[2]], cross_sets[train_index[3]] ])
+
+    
 
     # Create data loaders for our datasets; shuffle for training and for validation
     #train_loader = torch.utils.data.DataLoader(training_set, BATCHSIZE, shuffle=True, num_workers=os.cpu_count())
@@ -1005,7 +1021,7 @@ def objective(trial: optuna.trial.Trial) -> float:
     return f1_score_end
 
 if __name__ == '__main__':
-    PERCENT_VALID_EXAMPLES, PERCENT_TEST_EXAMPLES, ECK_TEST_PERC, LIMIT_TRAIN_BATCHES, LIMIT_VAL_BATCHES, LIMIT_TEST_BATCHES, EPOCHS, LOGGER_PATH, LOG_NAME, IMG_PATH, N_TRIALS, backbone_name, no_filters, real_test, test_img_path, img_size, csv_path, crop_perc, batch_size, label_name = get_args()
+    PERCENT_VALID_EXAMPLES, PERCENT_TEST_EXAMPLES, ECK_TEST_PERC, LIMIT_TRAIN_BATCHES, LIMIT_VAL_BATCHES, LIMIT_TEST_BATCHES, EPOCHS, LOGGER_PATH, LOG_NAME, IMG_PATH, N_TRIALS, backbone_name, no_filters, real_test, test_img_path, img_size, csv_path, crop_perc, batch_size, label_name, cross_validation = get_args()
 
     one_word_label = 'One_Word_Label_Not_Defined'
     if label_name == 'Ecklonia radiata':
@@ -1023,15 +1039,16 @@ if __name__ == '__main__':
         #['googlenet', 0], 
         #['convnext_large', 1536], 
         #['convnext_small', 768], 
-        ['resnext101_64x4d', 0], 
-        ['efficientnet_v2_l', 1280], 
+        #['resnext101_64x4d', 0], 
+        #['efficientnet_v2_l', 1280], 
         #['vit_h_14', 1280], #does not work  
-        ['regnet_x_32gf', 0], 
+        #['regnet_x_32gf', 0],
+        ['inception_v3',0],
         ['swin_v2_b', 1024],
-        ['inception_v3',0]
+        
         ] 
     
-    #model_specs = [['inception_v3',0]]
+    model_specs = [['inception_v3',0]]
 
     test_log_count = 0 # Needed to display all five datasets
 
@@ -1041,24 +1058,25 @@ if __name__ == '__main__':
     #for size in range(0,99,5): #!
     #    if size == 0: size =1
     #    crop_perc = size/100 #!
-    
+    cross_counter = 0
     # Used for fixed bounding_box
     for backbone_name, no_filters in model_specs:
+        for cross_counter in range(cross_validation):
     
-        study = optuna.create_study(direction="maximize")#, pruner=optuna.pruners.MedianPruner())
-        study.optimize(objective, n_trials=N_TRIALS, timeout=None)
+            study = optuna.create_study(direction="maximize")#, pruner=optuna.pruners.MedianPruner())
+            study.optimize(objective, n_trials=N_TRIALS, timeout=None)
 
-        print("Number of finished trials: {}".format(len(study.trials)))
-        print("Best trial:")
-        trial = study.best_trial
+            print("Number of finished trials: {}".format(len(study.trials)))
+            print("Best trial:")
+            trial = study.best_trial
 
-        print("  Value: {}".format(trial.value))
+            print("  Value: {}".format(trial.value))
 
-        print("  Params: ")
-        for key, value in trial.params.items():
-            print("    {}: {}".format(key, value))
+            print("  Params: ")
+            for key, value in trial.params.items():
+                print("    {}: {}".format(key, value))
 
-        #importance_dict = optuna.importance.get_param_importances(study)
-        #print(importance_dict)
+            #importance_dict = optuna.importance.get_param_importances(study)
+            #print(importance_dict)
         
     #cli_main()
