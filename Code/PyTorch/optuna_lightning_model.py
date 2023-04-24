@@ -672,11 +672,11 @@ def get_args():
 
     parser.add_argument('--eck_test_perc', metavar='eck_tp', type=float, help='The percentage of ecklonia examples in the test set', default=1.0)
 
-    parser.add_argument('--limit_train_batches', metavar='ltrb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.01) #!
+    parser.add_argument('--limit_train_batches', metavar='ltrb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=1.0) #!
 
-    parser.add_argument('--limit_val_batches', metavar='lvb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.01) #!
+    parser.add_argument('--limit_val_batches', metavar='lvb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=1.0) #!
 
-    parser.add_argument('--limit_test_batches', metavar='lteb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.5) #!
+    parser.add_argument('--limit_test_batches', metavar='lteb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=1.0) #!
 
     parser.add_argument('--epochs', metavar='epochs', type=int, help='The number of epcohs the algorithm trains', default=1) #!
 
@@ -861,7 +861,9 @@ def objective(trial: optuna.trial.Trial) -> float:
     ) #min needs to be 1e-6
     #LEARNING_RATE = 0.0000050000
     
-    optimizer_name = trial.suggest_categorical("optimizer", ['Adam', 'Adagrad', 'Adadelta', 'Adamax', 'AdamW', 'ASGD', 'NAdam', 'RAdam', 'RMSprop', 'Rprop', 'SGD'])
+    optimizer_name = trial.suggest_categorical("optimizer", ['Adam', 'Adamax', 'RMSprop', 'Adagrad','SGD', 'AdamW'])
+    
+    # Original was ("optimizer", ['Adam', 'Adagrad', 'Adadelta', 'Adamax', 'AdamW', 'ASGD', 'NAdam', 'RAdam', 'RMSprop', 'Rprop', 'SGD'])
     '''
     global optimizer_name
     optimizer_name = 'Adam'
@@ -921,7 +923,7 @@ def objective(trial: optuna.trial.Trial) -> float:
         enable_checkpointing=True,
         max_epochs=EPOCHS,
         accelerator=acc_val,
-        callbacks=[EarlyStopping(monitor="f1_score", mode="max")],
+        #callbacks=[EarlyStopping(monitor="f1_score", mode="max")],
         limit_train_batches=LIMIT_TRAIN_BATCHES,
         limit_val_batches=LIMIT_VAL_BATCHES,
         limit_test_batches=LIMIT_TEST_BATCHES,
@@ -1035,19 +1037,18 @@ if __name__ == '__main__':
 
     model_specs = [
         ['inception_v3',0],
-        ['swin_v2_b', 1024],
-        ['resnet152', 0],
+        #['swin_v2_b', 1024],
+        #['resnet152', 0],
         ['resnet50', 0],
         ['googlenet', 0], 
         ['convnext_large', 1536], 
         ['convnext_small', 768], 
         ['resnext101_64x4d', 0], 
         ['efficientnet_v2_l', 1280], 
-        #['vit_h_14', 1280], #does not work  
         ['regnet_x_32gf', 0],
         ] 
     
-#    model_specs = [['swin_v2_b', 1024]]
+    #model_specs = [['inception_v3', 0]]
 
     test_log_count = 0 # Needed to display all five datasets
 
