@@ -248,7 +248,7 @@ class GeneralDataset(Dataset):
         return img_tensor, class_id
 
 class KelpClassifier(pl.LightningModule):
-    def __init__(self, backbone_name, no_filters, trainer, trial, img_size, batch_size): #dropout, learning_rate, 
+    def __init__(self, backbone_name, no_filters, LEARNING_RATE ,trainer, trial, img_size, batch_size): #dropout, learning_rate, 
         super().__init__()
         # init a pretrained resnet
         self.csv_test_results = [[],[],[],[],[],[],[],[]]
@@ -258,7 +258,7 @@ class KelpClassifier(pl.LightningModule):
         self._trial = trial
         self.batch_size = batch_size
         self.monitor = 'f1_score'
-        self.hparams.learning_rate = 1e-5
+        self.hparams.learning_rate = LEARNING_RATE
         self.accuracy = torchmetrics.Accuracy(task='binary')
         self.backbone_name = backbone_name
         backbone = getattr(models, backbone_name)(weights='DEFAULT')
@@ -315,12 +315,12 @@ class KelpClassifier(pl.LightningModule):
                 return
             
             self._trial.report(current_score, step=epoch)
-            #if self._trial.should_prune():
-                #message = "Trial was pruned at epoch {}.".format(epoch)
+            if self._trial.should_prune():
+                message = "Trial was pruned at epoch {}.".format(epoch)
                 # Remove not successful log
                 #!
-                #shutil.rmtree(self.logger.log_dir, ignore_errors=True)
-                #raise optuna.TrialPruned(message) #!
+                shutil.rmtree(self.logger.log_dir, ignore_errors=True)
+                raise optuna.TrialPruned(message) #!
 
     def forward(self, x):
         if self.backbone_name == 'inception_v3':
@@ -443,7 +443,7 @@ class KelpClassifier(pl.LightningModule):
         return batch_idx, int(y[0]), int(top_class.data[0][0]), float(top_p.data[0][0])
 
     def configure_optimizers(self):
-        return getattr(torch.optim, optimizer_name)(self.parameters(), lr=self.hparams.learning_rate)
+        return getattr(torch.optim, optimizer_name)(self.parameters(),weight_decay=l2_param, lr=self.hparams.learning_rate)
         #return torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
 
 def save_test_csv(self):
@@ -672,17 +672,17 @@ def get_args():
 
     parser.add_argument('--eck_test_perc', metavar='eck_tp', type=float, help='The percentage of ecklonia examples in the test set', default=1.0)
 
-    parser.add_argument('--limit_train_batches', metavar='ltrb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=1.0) #!
+    parser.add_argument('--limit_train_batches', metavar='ltrb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.01) #!
 
-    parser.add_argument('--limit_val_batches', metavar='lvb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=1.0) #!
+    parser.add_argument('--limit_val_batches', metavar='lvb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.01) #!
 
-    parser.add_argument('--limit_test_batches', metavar='lteb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=1.0) #!
+    parser.add_argument('--limit_test_batches', metavar='lteb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.1) #!
 
     parser.add_argument('--epochs', metavar='epochs', type=int, help='The number of epcohs the algorithm trains', default=1) #!
 
     parser.add_argument('--log_path', metavar='log_path', type=str, help='The path where the logger files are saved', default='/pvol/logs/')
 
-    parser.add_argument('--log_name', metavar='log_name', type=str, help='Name of the experiment.', default='unnamed_crossvalidation')
+    parser.add_argument('--log_name', metavar='log_name', type=str, help='Name of the experiment.', default='unnamed')
 
     parser.add_argument('--img_path', metavar='img_path', type=str, help='Path to the database of images', default='/pvol/Final_Eck_1_to_10_Database/Original_images') #/pvol/Seagrass_Database/
 
@@ -690,7 +690,7 @@ def get_args():
     #/pvol/Final_Eck_1_to_10_Database/Original_images/164161_1_to_1_neighbour_Ecklonia_radiata_except.csv
     #/pvol/Final_Eck_1_to_1_neighbour_Database/Original_images/164161_1_to_1_neighbour_Ecklonia_radiata_except.csv
 
-    parser.add_argument('--n_trials', metavar='n_trials', type=int, help='Number of trials that Optuna runs for', default=1) #!
+    parser.add_argument('--n_trials', metavar='n_trials', type=int, help='Number of trials that Optuna runs for', default=2) #!
 
     parser.add_argument('--backbone', metavar='backbone', type=str, help='Name of the model which should be used for transfer learning', default='inception_v3')
 
@@ -838,7 +838,7 @@ def objective(trial: optuna.trial.Trial) -> float:
     # Optuna Params
     ###############
     global RandomEqualize, RandomRotation, RandomErasing, RandomPerspective, RandomAffine, RandomVerticalFlip, RandomHorizontalFlip, RandomInvert, ColorJitter, ElasticTransform, RandomAutocontrast, RandomGrayscale
-    '''
+    
     RandomEqualize = trial.suggest_categorical("RandomEqualize", [True,False])
     RandomRotation = trial.suggest_categorical("RandomRotation", [True,False])
     RandomErasing = trial.suggest_categorical("RandomErasing", [True,False])
@@ -851,22 +851,23 @@ def objective(trial: optuna.trial.Trial) -> float:
     ElasticTransform = trial.suggest_categorical("ElasticTransform", [True,False])
     RandomAutocontrast = trial.suggest_categorical("RandomAutocontrast", [True,False])
     RandomGrayscale = trial.suggest_categorical("RandomGrayscale", [True,False])
-    '''
-    RandomEqualize, RandomRotation, RandomErasing, RandomPerspective, RandomAffine, RandomVerticalFlip, RandomHorizontalFlip, RandomInvert, ColorJitter, ElasticTransform, RandomAutocontrast, RandomGrayscale = False, False, False, False, False, False, False, False, False, False, False, False, 
+    
+    #RandomEqualize, RandomRotation, RandomErasing, RandomPerspective, RandomAffine, RandomVerticalFlip, RandomHorizontalFlip, RandomInvert, ColorJitter, ElasticTransform, RandomAutocontrast, RandomGrayscale = False, False, False, False, False, False, False, False, False, False, False, False, 
+    
     #dropout = trial.suggest_float("dropout", 0.2, 0.5)
     #trial.suggest_int("batchsize", 8, 128)
-    '''
-    LEARNING_RATE = trial.suggest_float(
-        "learning_rate_init", 1e-6, 1e-2, log=True
-    ) #min needs to be 1e-6
-    #LEARNING_RATE = 0.0000050000
     
-    optimizer_name = trial.suggest_categorical("optimizer", ['Adam', 'Adamax', 'RMSprop', 'Adagrad','SGD', 'AdamW'])
+    #LEARNING_RATE = trial.suggest_float(
+    #    "learning_rate_init", 1e-6, 1e-4, log=True
+    #) #min needs to be 1e-6
+    LEARNING_RATE = 1e-5
+    #global optimizer_name
+    #optimizer_name = trial.suggest_categorical("optimizer", ['Adam', 'Adamax', 'RMSprop', 'SGD', 'AdamW'])
     
     # Original was ("optimizer", ['Adam', 'Adagrad', 'Adadelta', 'Adamax', 'AdamW', 'ASGD', 'NAdam', 'RAdam', 'RMSprop', 'Rprop', 'SGD'])
-    '''
-    global optimizer_name
-    optimizer_name = 'Adam'
+    
+    
+    #optimizer_name = 'Adam'
 
     global threshold
     #threshold = trial.suggest_float("threshold", 0.5, 1)
@@ -891,7 +892,7 @@ def objective(trial: optuna.trial.Trial) -> float:
     train_val_set = CSV_Dataset(img_size, test_list, test = False, inception = inception, csv_data_path = csv_path)
     
     global training_set, validation_set
-    training_set, validation_set = torch.utils.data.random_split(train_val_set,[0.90, 0.10], generator=torch.Generator().manual_seed(423))
+    training_set, validation_set = torch.utils.data.random_split(train_val_set,[0.80, 0.20], generator=torch.Generator().manual_seed(423))
     if cross_validation != 0:
         train_index = [0,1,2,3,4]
         train_index.remove(cross_counter)
@@ -929,13 +930,13 @@ def objective(trial: optuna.trial.Trial) -> float:
         limit_test_batches=LIMIT_TEST_BATCHES,
         precision=16,
         log_every_n_steps=50,
-        #auto_scale_batch_size="power",
+        #auto_scale_batch_size="binsearch",
         auto_lr_find=False, #!
     )
     
     model = KelpClassifier(backbone_name, 
                             no_filters, 
-                            #LEARNING_RATE, 
+                            LEARNING_RATE, 
                             batch_size = batch_size, 
                             trial = trial, 
                             #monitor ='f1_score', 
@@ -954,11 +955,23 @@ def objective(trial: optuna.trial.Trial) -> float:
     ##########
     hyperparameters = dict(
             optimizer_name = optimizer_name,
-            learning_rate=model.hparams.learning_rate, #LEARNING_RATE, 
+            learning_rate=LEARNING_RATE,#model.hparams.learning_rate,  
             backbone = backbone_name,
             #batchsize = model.batch_size, 
             threshold = threshold,
-            f1_score = trainer.callback_metrics["f1_score"].item())
+            f1_score = trainer.callback_metrics["f1_score"].item(),
+            RandomEqualize=RandomEqualize, 
+            RandomRotation=RandomRotation, 
+            RandomErasing=RandomErasing, 
+            RandomPerspective=RandomPerspective, 
+            RandomAffine=RandomAffine, 
+            RandomVerticalFlip=RandomVerticalFlip, 
+            RandomHorizontalFlip=RandomHorizontalFlip, 
+            RandomInvert=RandomInvert, 
+            ColorJitter=ColorJitter, 
+            ElasticTransform=ElasticTransform, 
+            RandomAutocontrast=RandomAutocontrast, RandomGrayscale=RandomGrayscale
+            )
     if crop_perc != 0:
         hyperparameters['crop_perc']=crop_perc
     else:
@@ -972,8 +985,8 @@ def objective(trial: optuna.trial.Trial) -> float:
 
     
     # Handle pruning based on the intermediate value.
-    #if trial.should_prune(): #!
-        #raise optuna.TrialPruned()
+    if trial.should_prune(): #!
+        raise optuna.TrialPruned()
     
     # value copied here so that it is not influenced by different testing options
     f1_score_end = trainer.callback_metrics["f1_score"].item()
@@ -1036,19 +1049,19 @@ if __name__ == '__main__':
         one_word_label = 'Macroalgal'
 
     model_specs = [
-        ['inception_v3',0],
+        #['inception_v3',0],
         #['swin_v2_b', 1024],
         #['resnet152', 0],
-        ['resnet50', 0],
-        ['googlenet', 0], 
-        ['convnext_large', 1536], 
+        #['resnet50', 0],
+        #['googlenet', 0], 
+        #['convnext_large', 1536], 
         ['convnext_small', 768], 
         ['resnext101_64x4d', 0], 
         ['efficientnet_v2_l', 1280], 
         ['regnet_x_32gf', 0],
         ] 
     
-    #model_specs = [['inception_v3', 0]]
+    model_specs = [['inception_v3', 0]]
 
     test_log_count = 0 # Needed to display all five datasets
 
@@ -1060,23 +1073,28 @@ if __name__ == '__main__':
     #    crop_perc = size/100 #!
     cross_counter = 0
     # Used for fixed bounding_box
-    for backbone_name, no_filters in model_specs:
+    backbone_name, no_filters ='inception_v3', 0
+    #for optimizer_name in ['AdamW']:
+    optimizer_name = 'AdamW'
+    l2_param = 0.01
+    #for l2_param in [0.1, 0.01, 0.001]:
+    #for backbone_name, no_filters in model_specs:
         #for cross_counter in range(cross_validation):
     
-        study = optuna.create_study(direction="maximize")#, pruner=optuna.pruners.MedianPruner())
-        study.optimize(objective, n_trials=N_TRIALS, timeout=None)
+    study = optuna.create_study(direction="maximize", pruner=optuna.pruners.MedianPruner())
+    study.optimize(objective, n_trials=N_TRIALS, timeout=None)
 
-        print("Number of finished trials: {}".format(len(study.trials)))
-        print("Best trial:")
-        trial = study.best_trial
+    print("Number of finished trials: {}".format(len(study.trials)))
+    print("Best trial:")
+    trial = study.best_trial
 
-        print("  Value: {}".format(trial.value))
+    print("  Value: {}".format(trial.value))
 
-        print("  Params: ")
-        for key, value in trial.params.items():
-            print("    {}: {}".format(key, value))
+    print("  Params: ")
+    for key, value in trial.params.items():
+        print("    {}: {}".format(key, value))
 
-        #importance_dict = optuna.importance.get_param_importances(study)
-        #print(importance_dict)
+    importance_dict = optuna.importance.get_param_importances(study)
+    print(importance_dict)
         
     #cli_main()
