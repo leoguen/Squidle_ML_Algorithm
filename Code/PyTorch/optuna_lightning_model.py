@@ -508,7 +508,6 @@ def plot_confusion_matrix(self):
     tensorboard.add_image('Confusion Matrix Test' , data, path_label, dataformats='HWC')
 
     plt.close()
-    #test
 
 
 def get_crop_points(self, x, y, original_image, img_size):
@@ -838,7 +837,7 @@ def objective(trial: optuna.trial.Trial) -> float:
     # Optuna Params
     ###############
     global RandomEqualize, RandomRotation, RandomErasing, RandomPerspective, RandomAffine, RandomVerticalFlip, RandomHorizontalFlip, RandomInvert, ColorJitter, ElasticTransform, RandomAutocontrast, RandomGrayscale
-    
+    '''
     RandomEqualize = trial.suggest_categorical("RandomEqualize", [True,False])
     RandomRotation = trial.suggest_categorical("RandomRotation", [True,False])
     RandomErasing = trial.suggest_categorical("RandomErasing", [True,False])
@@ -851,8 +850,10 @@ def objective(trial: optuna.trial.Trial) -> float:
     ElasticTransform = trial.suggest_categorical("ElasticTransform", [True,False])
     RandomAutocontrast = trial.suggest_categorical("RandomAutocontrast", [True,False])
     RandomGrayscale = trial.suggest_categorical("RandomGrayscale", [True,False])
+    '''
+    RandomEqualize,RandomVerticalFlip, RandomHorizontalFlip, RandomInvert,RandomAutocontrast = True, True, True, True, True
     
-    #RandomEqualize, RandomRotation, RandomErasing, RandomPerspective, RandomAffine, RandomVerticalFlip, RandomHorizontalFlip, RandomInvert, ColorJitter, ElasticTransform, RandomAutocontrast, RandomGrayscale = False, False, False, False, False, False, False, False, False, False, False, False, 
+    RandomRotation, RandomErasing, RandomPerspective, RandomAffine,ColorJitter, ElasticTransform,  RandomGrayscale = False, False, False, False, False, False, False
     
     #dropout = trial.suggest_float("dropout", 0.2, 0.5)
     #trial.suggest_int("batchsize", 8, 128)
@@ -892,12 +893,12 @@ def objective(trial: optuna.trial.Trial) -> float:
     train_val_set = CSV_Dataset(img_size, test_list, test = False, inception = inception, csv_data_path = csv_path)
     
     global training_set, validation_set
-    training_set, validation_set = torch.utils.data.random_split(train_val_set,[0.80, 0.20], generator=torch.Generator().manual_seed(423))
+    training_set, validation_set = torch.utils.data.random_split(train_val_set,[0.80, 0.20], generator=torch.Generator().manual_seed(4234))
     if cross_validation != 0:
         train_index = [0,1,2,3,4]
         train_index.remove(cross_counter)
         cross_sets = []*cross_validation
-        cross_sets = torch.utils.data.random_split(train_val_set,[0.2,0.2,0.2,0.2,0.2], generator=torch.Generator().manual_seed(423))
+        cross_sets = torch.utils.data.random_split(train_val_set,[0.2,0.2,0.2,0.2,0.2], generator=torch.Generator().manual_seed(4234))
         validation_set = cross_sets[cross_counter]
         #cross_sets = cross_sets.pop(cross_counter)
 
@@ -1079,22 +1080,22 @@ if __name__ == '__main__':
     l2_param = 0.01
     #for l2_param in [0.1, 0.01, 0.001]:
     #for backbone_name, no_filters in model_specs:
-        #for cross_counter in range(cross_validation):
+    for cross_counter in range(cross_validation):
     
-    study = optuna.create_study(direction="maximize", pruner=optuna.pruners.MedianPruner())
-    study.optimize(objective, n_trials=N_TRIALS, timeout=None)
+        study = optuna.create_study(direction="maximize", pruner=optuna.pruners.MedianPruner())
+        study.optimize(objective, n_trials=N_TRIALS, timeout=None)
 
-    print("Number of finished trials: {}".format(len(study.trials)))
-    print("Best trial:")
-    trial = study.best_trial
+        print("Number of finished trials: {}".format(len(study.trials)))
+        print("Best trial:")
+        trial = study.best_trial
 
-    print("  Value: {}".format(trial.value))
+        print("  Value: {}".format(trial.value))
 
-    print("  Params: ")
-    for key, value in trial.params.items():
-        print("    {}: {}".format(key, value))
+        print("  Params: ")
+        for key, value in trial.params.items():
+            print("    {}: {}".format(key, value))
 
-    importance_dict = optuna.importance.get_param_importances(study)
-    print(importance_dict)
-        
-    #cli_main()
+        #importance_dict = optuna.importance.get_param_importances(study)
+        #print(importance_dict)
+            
+        #cli_main()
