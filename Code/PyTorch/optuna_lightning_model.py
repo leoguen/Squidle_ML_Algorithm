@@ -291,12 +291,12 @@ class KelpClassifier(pl.LightningModule):
         #self.save_hyperparameters(ignore=['trainer','trial'])
 
     def train_dataloader(self):
-        train_dataloader = DataLoader(training_set, batch_size=self.batch_size, num_workers=60)#os.cpu_count(),shuffle=False)
+        train_dataloader = DataLoader(training_set, batch_size=self.batch_size, num_workers=30)#os.cpu_count(),shuffle=False)
         #display_dataloader(train_dataloader, 'train_dataloader')
         return train_dataloader
     
     def val_dataloader(self):
-        val_dataloader = DataLoader(validation_set, batch_size=self.batch_size, num_workers=60)#os.cpu_count(),shuffle=False)
+        val_dataloader = DataLoader(validation_set, batch_size=self.batch_size, num_workers=30)#os.cpu_count(),shuffle=False)
         #display_dataloader(val_dataloader, 'val_dataloader')
         return val_dataloader
         #return DataLoader(validation_set, batch_size=self.batch_size, num_workers=os.cpu_count(),shuffle=False)
@@ -415,7 +415,8 @@ class KelpClassifier(pl.LightningModule):
             else: 
                 self.logger.experiment.add_scalars('test_'+var, {name: metric_list[i]},path_label)
         
-        plot_confusion_matrix(self)
+        #plot_confusion_matrix(self)
+        
         # Add ROC curve
         #create_roc_curve(self)
         
@@ -851,9 +852,9 @@ def objective(trial: optuna.trial.Trial) -> float:
     RandomAutocontrast = trial.suggest_categorical("RandomAutocontrast", [True,False])
     RandomGrayscale = trial.suggest_categorical("RandomGrayscale", [True,False])
     '''
-    RandomEqualize,RandomVerticalFlip, RandomHorizontalFlip, RandomInvert,RandomAutocontrast = True, True, True, True, True
+    RandomEqualize, RandomRotation, RandomVerticalFlip, RandomHorizontalFlip  = True, True, True, True
     
-    RandomRotation, RandomErasing, RandomPerspective, RandomAffine,ColorJitter, ElasticTransform,  RandomGrayscale = False, False, False, False, False, False, False
+    RandomInvert, RandomAutocontrast, RandomErasing, RandomPerspective, RandomAffine, ColorJitter, ElasticTransform, RandomGrayscale = False, False, False, False, False, False, False, False
     
     #dropout = trial.suggest_float("dropout", 0.2, 0.5)
     #trial.suggest_int("batchsize", 8, 128)
@@ -1022,13 +1023,13 @@ def objective(trial: optuna.trial.Trial) -> float:
             test_set = CSV_Dataset(img_size, test_list, test = True, inception=inception, csv_data_path= path)
             #test_set = GeneralDataset(img_size, test_list, test=True, inception=inception, test_img_path=path)
             # Just looks at one dataset
-            test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=60)#os.cpu_count())
+            test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=30)#os.cpu_count())
             #display_dataloader(test_loader, 'Test Loader'+str(path_label))
 
             trainer.test(ckpt_path='best', dataloaders=test_loader)
     else: 
         test_set = GeneralDataset(img_size, test_list, test = True, inception=inception,test_img_path = test_img_path)
-        test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=True, num_workers=60)#os.cpu_count())
+        test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=True, num_workers=30)#os.cpu_count())
         #display_dataloader(test_loader, 'Test Loader Generaldataset')
         trainer.test(ckpt_path='best', dataloaders=test_loader)
     
@@ -1081,7 +1082,6 @@ if __name__ == '__main__':
     #for l2_param in [0.1, 0.01, 0.001]:
     #for backbone_name, no_filters in model_specs:
     for cross_counter in range(cross_validation):
-    
         study = optuna.create_study(direction="maximize", pruner=optuna.pruners.MedianPruner())
         study.optimize(objective, n_trials=N_TRIALS, timeout=None)
 
@@ -1097,5 +1097,5 @@ if __name__ == '__main__':
 
         #importance_dict = optuna.importance.get_param_importances(study)
         #print(importance_dict)
-            
-        #cli_main()
+                
+            #cli_main()
