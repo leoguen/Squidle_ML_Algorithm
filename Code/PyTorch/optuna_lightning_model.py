@@ -686,7 +686,7 @@ def get_args():
 
     parser.add_argument('--img_path', metavar='img_path', type=str, help='Path to the database of images', default='/pvol/Final_Eck_1_to_10_Database/Original_images') #/pvol/Seagrass_Database/
 
-    parser.add_argument('--csv_path', metavar='csv_path', type=str, help='Path to the csv file describing the images', default='/pvol/Final_Eck_1_to_10_Database/Original_images/164161_1_to_1_neighbour_Ecklonia_radiata_except.csv')
+    parser.add_argument('--csv_path', metavar='csv_path', type=str, help='Path to the csv file describing the images', default='/pvol/Final_Eck_1_to_10_Database/Original_images/205282_neighbour_Hard_coral_cover_NMSC_list.csv')
     #/pvol/Final_Eck_1_to_10_Database/Original_images/164161_1_to_1_neighbour_Ecklonia_radiata_except.csv
     #/pvol/Final_Eck_1_to_1_neighbour_Database/Original_images/164161_1_to_1_neighbour_Ecklonia_radiata_except.csv
 
@@ -705,7 +705,7 @@ def get_args():
 
     parser.add_argument('--batch_size', metavar='batch_size', type=int, help= 'Defines batch_size that is used to train algorithm.', default=32) #!
 
-    parser.add_argument('--label_name', metavar='label_name', type=str, help='Name of the label used in the csv file', default='Ecklonia radiata') #Seagrass cover
+    parser.add_argument('--label_name', metavar='label_name', type=str, help='Name of the label used in the csv file', default='Hard coral cover') #Seagrass cover
 
     parser.add_argument('--cross_validation', metavar='cross_validation', type=int, help= 'Defines how many sets the dataset is going to be divided in for cross validation.', default=0) #!
     
@@ -995,7 +995,6 @@ def objective(trial: optuna.trial.Trial) -> float:
 
     if real_test:
         #Used for CSV Dataset
-        
         path_list = [
             '/pvol/Ecklonia_Testbase/WA/Original_images/annotations-u45-leo_kelp_SWC_WA_AI_test-leo_kelp_AI_SWC_WA_test_25pts-8148-7652a9b48f0e3186fe5d-dataframe.csv', 
             '/pvol/Ecklonia_Testbase/NSW_Broughton/Original_images/annotations-u45-leo_kelp_AI_test_broughton_is_NSW-leo_kelp_AI_test_broughton_is_25pts-8152-7652a9b48f0e3186fe5d-dataframe.csv', 
@@ -1007,6 +1006,13 @@ def objective(trial: optuna.trial.Trial) -> float:
             '/pvol/Ecklonia_Testbase/Port_Phillip_Heads/Original_images/Ecklonia_RLS_Port Phillip Heads_2010.csv'
             ]
         
+        # Used for Hardcoral
+        path_list = [
+            '/pvol/NMSC_Testbase/Hardcoral_Queensland/Original_images/Hardcoral_RLS_Queensland (other)_2015.csv',
+            '/pvol/NMSC_Testbase/Hardcoral_Norfolk/Original_images/Hardcoral_RLS_Norfolk Island_2013.csv',
+            '/pvol/NMSC_Testbase/Hardcoral_Ningaloo/Original_images/Hardcoral_RLS_Ningaloo Marine Park_2016.csv'
+        ]
+
         '''
         #Used for Generaldataset
         path_list = [
@@ -1081,19 +1087,20 @@ if __name__ == '__main__':
     l2_param = 0.01
     #for l2_param in [0.1, 0.01, 0.001]:
     #for backbone_name, no_filters in model_specs:
-    for cross_counter in range(cross_validation):
-        study = optuna.create_study(direction="maximize", pruner=optuna.pruners.MedianPruner())
-        study.optimize(objective, n_trials=N_TRIALS, timeout=None)
+    #for cross_counter in range(cross_validation):
+    
+    study = optuna.create_study(direction="maximize", pruner=optuna.pruners.MedianPruner())
+    study.optimize(objective, n_trials=N_TRIALS, timeout=None)
 
-        print("Number of finished trials: {}".format(len(study.trials)))
-        print("Best trial:")
-        trial = study.best_trial
+    print("Number of finished trials: {}".format(len(study.trials)))
+    print("Best trial:")
+    trial = study.best_trial
 
-        print("  Value: {}".format(trial.value))
+    print("  Value: {}".format(trial.value))
 
-        print("  Params: ")
-        for key, value in trial.params.items():
-            print("    {}: {}".format(key, value))
+    print("  Params: ")
+    for key, value in trial.params.items():
+        print("    {}: {}".format(key, value))
 
         #importance_dict = optuna.importance.get_param_importances(study)
         #print(importance_dict)
