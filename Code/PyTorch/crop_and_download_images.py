@@ -193,21 +193,20 @@ class crop_download_images():
 
 if __name__ == "__main__":
     keep_og_size=True
-    coi = 'Ecklonia' #'Seagrass cover' 
-    loi = 'Ecklonia radiata' #Seagrass cover' 
+    coi = 'Hard coral cover' #'Seagrass cover' 
+    loi = 'Hard coral cover' #Seagrass cover' 
     #Macroalgal canopy cover
     #Hard coral cover
     #Seagrass cover
     download_list = [[299,299]]
     
     path_list = [
-        #['Seagrass cover','Seagrass_Database' ,'/Annotation_Sets/14961_Seagrass_cover_NMSC_list.csv'], 
-        ['Hard coral cover','Hardcoral_Database' ,'/Annotation_Sets/167052_Hard_coral_cover_NMSC_list.csv'],
-        ['Macroalgal canopy cover','Macroalgal_Database' ,'/Annotation_Sets/407756_Macroalgal_canopy_cover_NMSC_list.csv']
+        ['Seagrass cover','Final_Eck_1_to_10_Database' ,'/Annotation_Sets/Final_Sets/22754_neighbour_Seagrass_cover_NMSC_list.csv'], 
+        ['Hard coral cover','Final_Eck_1_to_10_Database' ,'/Annotation_Sets/Final_Sets/205282_neighbour_Hard_coral_cover_NMSC_list.csv'],
+        ['Macroalgal canopy cover','Final_Eck_1_to_10_Database' ,'/Annotation_Sets/Final_Sets/405405_neighbour_Macroalgal_canopy_cover_NMSC_list.csv']
         ]
     
-    
-
+    """
     path_list = [
         #['Seagrass cover', 'NMSC_Testbase/Seagrass_Port_Phillip_2017', '/Annotation_Sets/Final_Sets/Seagrass_RLS_Port Phillip Bay_2017.csv'], 
         #['Seagrass cover', 'NMSC_Testbase/Seagrass_Port_Phillip_2016', '/Annotation_Sets/Final_Sets/Seagrass_RLS_Port Phillip Bay_2016.csv'],
@@ -223,7 +222,7 @@ if __name__ == "__main__":
         ['Ecklonia radiata', 'Final_Eck_1_to_10_Database', '/Annotation_Sets/Final_Sets/405405_neighbour_Macroalgal_canopy_cover_NMSC_list.csv'],
         ['Ecklonia radiata', 'Final_Eck_1_to_10_Database', '/Annotation_Sets/Final_Sets/205282_neighbour_Hard_coral_cover_NMSC_list.csv'],
         ['Ecklonia radiata', 'Final_Eck_1_to_10_Database', '/Annotation_Sets/Final_Sets/22754_neighbour_Seagrass_cover_NMSC_list.csv']]
-
+    """
     for bounding_box in download_list:
         for name,database,path in path_list:
             coi = name
