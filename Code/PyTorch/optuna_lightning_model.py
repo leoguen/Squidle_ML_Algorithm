@@ -85,8 +85,6 @@ class CSV_Dataset(Dataset):
         # get crop coordinates
         x0, x1, y0, y1 = get_crop_points(self, x, y, img, loc_img_size)
         cropped_img = img.crop((x0, y0, x1, y1))
-        x_perc = (x-x0)/(x1-x0)
-        y_perc = (y-y0)/(y1-y0)
         x_crop_size, y_crop_size = cropped_img.size
         if self.inception:
             if self.test_indicator: 
@@ -1074,11 +1072,7 @@ if __name__ == '__main__':
     test_log_count = 0 # Needed to display all five datasets
 
     
-    # Used for precent test
-    
-    #for size in range(0,99,5): #!
-    #    if size == 0: size =1
-    #    crop_perc = size/100 #!
+
     cross_counter = 0
     # Used for fixed bounding_box
     backbone_name, no_filters ='inception_v3', 0
@@ -1088,19 +1082,22 @@ if __name__ == '__main__':
     #for l2_param in [0.1, 0.01, 0.001]:
     #for backbone_name, no_filters in model_specs:
     #for cross_counter in range(cross_validation):
-    
-    study = optuna.create_study(direction="maximize", pruner=optuna.pruners.MedianPruner())
-    study.optimize(objective, n_trials=N_TRIALS, timeout=None)
+        # Used for precent test
+    for size in range(0,99,5): #!
+        if size == 0: size =1
+        crop_perc = size/100 #!
+        study = optuna.create_study(direction="maximize", pruner=optuna.pruners.MedianPruner())
+        study.optimize(objective, n_trials=N_TRIALS, timeout=None)
 
-    print("Number of finished trials: {}".format(len(study.trials)))
-    print("Best trial:")
-    trial = study.best_trial
+        print("Number of finished trials: {}".format(len(study.trials)))
+        print("Best trial:")
+        trial = study.best_trial
 
-    print("  Value: {}".format(trial.value))
+        print("  Value: {}".format(trial.value))
 
-    print("  Params: ")
-    for key, value in trial.params.items():
-        print("    {}: {}".format(key, value))
+        print("  Params: ")
+        for key, value in trial.params.items():
+            print("    {}: {}".format(key, value))
 
         #importance_dict = optuna.importance.get_param_importances(study)
         #print(importance_dict)
