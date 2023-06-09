@@ -684,7 +684,9 @@ def get_args():
 
     parser.add_argument('--img_path', metavar='img_path', type=str, help='Path to the database of images', default='/pvol/Final_Eck_1_to_10_Database/Original_images') #/pvol/Seagrass_Database/
 
-    parser.add_argument('--csv_path', metavar='csv_path', type=str, help='Path to the csv file describing the images', default='/pvol/Final_Eck_1_to_10_Database/Original_images/205282_neighbour_Hard_coral_cover_NMSC_list.csv')
+    parser.add_argument('--csv_path', metavar='csv_path', type=str, help='Path to the csv file describing the images', default='/pvol/Final_Eck_1_to_10_Database/Original_images/405405_neighbour_Macroalgal_canopy_cover_NMSC_list.csv')
+    #/pvol/Final_Eck_1_to_10_Database/Original_images/205282_neighbour_Hard_coral_cover_NMSC_list.csv
+    #/pvol/Final_Eck_1_to_10_Database/Original_images/405405_neighbour_Macroalgal_canopy_cover_NMSC_list.csv
     #/pvol/Final_Eck_1_to_10_Database/Original_images/164161_1_to_1_neighbour_Ecklonia_radiata_except.csv
     #/pvol/Final_Eck_1_to_1_neighbour_Database/Original_images/164161_1_to_1_neighbour_Ecklonia_radiata_except.csv
 
@@ -699,11 +701,11 @@ def get_args():
     parser.add_argument('--img_size', metavar='img_size', type=int, help=
     'Defines the size of the used image.', default=299)
     
-    parser.add_argument('--crop_perc', metavar='crop_perc', type=int, help= 'Defines percentage that is used to crop the image.', default=0.18)
+    parser.add_argument('--crop_perc', metavar='crop_perc', type=int, help= 'Defines percentage that is used to crop the image.', default=0.20)
 
     parser.add_argument('--batch_size', metavar='batch_size', type=int, help= 'Defines batch_size that is used to train algorithm.', default=32) #!
 
-    parser.add_argument('--label_name', metavar='label_name', type=str, help='Name of the label used in the csv file', default='Hard coral cover') #Seagrass cover
+    parser.add_argument('--label_name', metavar='label_name', type=str, help='Name of the label used in the csv file', default='Macroalgal canopy cover') #Seagrass cover
 
     parser.add_argument('--cross_validation', metavar='cross_validation', type=int, help= 'Defines how many sets the dataset is going to be divided in for cross validation.', default=0) #!
     
@@ -1011,6 +1013,13 @@ def objective(trial: optuna.trial.Trial) -> float:
             '/pvol/NMSC_Testbase/Hardcoral_Ningaloo/Original_images/Hardcoral_RLS_Ningaloo Marine Park_2016.csv'
         ]
 
+        # Used for Macroalgal
+        path_list = [
+            '/pvol/NMSC_Testbase/Macroalgal_Port_Phillip/Original_images/Macroalgal_RLS_Port Phillip Bay_2017.csv',
+            '/pvol/NMSC_Testbase/Macroalgal_Gulf/Original_images/Macroalgal_RLS_Gulf St Vincent_2012.csv',
+            '/pvol/NMSC_Testbase/Macroalgal_Jervis/Original_images/Macroalgal_RLS_Jervis Bay Marine Park_2015.csv'
+        ]
+
         '''
         #Used for Generaldataset
         path_list = [
@@ -1082,10 +1091,13 @@ if __name__ == '__main__':
     #for l2_param in [0.1, 0.01, 0.001]:
     #for backbone_name, no_filters in model_specs:
     #for cross_counter in range(cross_validation):
+        
         # Used for precent test
-    for size in range(0,99,5): #!
+    #for size in range(12,26,2): #!
+    for size in [18]:
         if size == 0: size =1
         crop_perc = size/100 #!
+    
         study = optuna.create_study(direction="maximize", pruner=optuna.pruners.MedianPruner())
         study.optimize(objective, n_trials=N_TRIALS, timeout=None)
 
