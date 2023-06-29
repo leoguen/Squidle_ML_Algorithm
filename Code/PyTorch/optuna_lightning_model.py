@@ -430,7 +430,7 @@ class KelpClassifier(pl.LightningModule):
         
         save_test_csv(self)
     
-    def predict_step(self, batch, batch_idx):
+    def predict_step(self, batch, batch_idx): 
         # This can be used for implementation
         x, y = batch
         #x, y = batch
@@ -439,6 +439,7 @@ class KelpClassifier(pl.LightningModule):
         prob = F.softmax(y_hat, dim=1)
         top_p, top_class = prob.topk(1, dim = 1)
         
+        #return int(top_class.data[0][0]), float(top_p.data[0][0])
         return batch_idx, int(y[0]), int(top_class.data[0][0]), float(top_p.data[0][0])
 
     def configure_optimizers(self):
@@ -1090,28 +1091,28 @@ if __name__ == '__main__':
     l2_param = 0.01
     #for l2_param in [0.1, 0.01, 0.001]:
     #for backbone_name, no_filters in model_specs:
-    #for cross_counter in range(cross_validation):
+    for cross_counter in range(cross_validation):
         
         # Used for precent test
-    #for size in range(12,26,2): #!
-    for size in [18]:
-        if size == 0: size =1
-        crop_perc = size/100 #!
+    #for size in range(12,28,2): #!
+        for size in [18]:
+            if size == 0: size =1
+            crop_perc = size/100 #!
     
-        study = optuna.create_study(direction="maximize", pruner=optuna.pruners.MedianPruner())
-        study.optimize(objective, n_trials=N_TRIALS, timeout=None)
+            study = optuna.create_study(direction="maximize", pruner=optuna.pruners.MedianPruner())
+            study.optimize(objective, n_trials=N_TRIALS, timeout=None)
 
-        print("Number of finished trials: {}".format(len(study.trials)))
-        print("Best trial:")
-        trial = study.best_trial
+            print("Number of finished trials: {}".format(len(study.trials)))
+            print("Best trial:")
+            trial = study.best_trial
 
-        print("  Value: {}".format(trial.value))
+            print("  Value: {}".format(trial.value))
 
-        print("  Params: ")
-        for key, value in trial.params.items():
-            print("    {}: {}".format(key, value))
+            print("  Params: ")
+            for key, value in trial.params.items():
+                print("    {}: {}".format(key, value))
 
-        #importance_dict = optuna.importance.get_param_importances(study)
-        #print(importance_dict)
-                
-            #cli_main()
+            #importance_dict = optuna.importance.get_param_importances(study)
+            #print(importance_dict)
+                    
+                #cli_main()
