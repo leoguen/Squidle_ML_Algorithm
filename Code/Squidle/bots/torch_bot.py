@@ -17,7 +17,7 @@ import sys
 import os
 import torch
 from pytorch_lightning import Trainer
-
+from prediction_model import KelpClassifier
 
 DEFAULT_CROP_PERC = 0.18
 
@@ -48,7 +48,7 @@ class SQDataset(Dataset):
 
 class TorchBOT(Annotator):
 
-    def __init__(self, model_path: str, crop_perc: float = DEFAULT_CROP_PERC, 
+    def __init__(self, model_path: str = '/pvol/logs/Eck_cross_validation_1/perc_18/lightning_logs/version_0/checkpoints/epoch=49-step=32550.ckpt', crop_perc: float = DEFAULT_CROP_PERC, 
                 **kwargs: object) -> object:
         """
         Uses pytorch to run a pytorch model
@@ -58,20 +58,42 @@ class TorchBOT(Annotator):
         """
 
         super().__init__(**kwargs)
-        self.model = torch.load(model_path, map_location=torch.device('cpu'))
+        self.model = KelpClassifier.load_from_checkpoint(
+            model_path,
+            optimizer="AdamW",
+            backbone_name='inception_v3',
+            no_filters=0,
+        )
+
+        # Instantiate the Trainer with specific settings
+        acc_val = 'cpu'
+        if torch.cuda.is_available(): acc_val = 'gpu'
+        
+        self.trainer = Trainer(
+            accelerator=acc_val,
+            logger=False,
+            num_sanity_val_steps=0,
+            precision=16,
+        )
         self.model.eval()
         self.crop_perc = crop_perc or DEFAULT_CROP_PERC
 
-
     def predict(self, input_data):
+        # Create a SQDataset object with the cropped image for classification
+        test_set = SQDataset(input_data)
+        # Create a DataLoader for the test_set with batch size 1
+        test_loader = torch.utils.data.DataLoader(test_set, batch_size=1, shuffle=False, num_workers=os.cpu_count())
         with torch.no_grad():
-            input_tensor = torch.tensor(input_data, dtype=torch.float32)
-            output_tensor = self.model(input_tensor)
-            probabilities = F.softmax(output_tensor, dim=1)
+            # Predict the label using the Inception-based model through the Trainer
+            results = (self.trainer.predict(self.model, dataloaders=test_loader))
+            #results = self.predict(test_loader)
+            print(results)
+            print(results[0][2])
+            classifier_code = results[0][2] # "1" means object of interest
+            prob = results[0][3]
+        return classifier_code, prob
 
-        return probabilities.numpy()
-
-    def get_patch(self, x, y, patchsize, mediaobj):
+    def get_patch(self, x, y, mediaobj):
         # Retrieve image data from the media object
         image_data = mediaobj.data()  # cv2 image object containing media data
         media_path = mediaobj.url  # path to media item
@@ -86,45 +108,37 @@ class TorchBOT(Annotator):
 
         # Crop the image to the specified region of interest
         cropped_img = img.crop((x0, y0, x1, y1))
-        
+
         return cropped_img
 
     def get_crop_points(self, x, y, original_image, img_size):
         # Calculate the crop points for the specified x-y position to extract a region of interest around the point
         x_img, y_img = original_image.size
         crop_dist = img_size / 2
-        if x - crop_dist < 0:
-            x0 = 0
-        else:
-            x0 = x - crop_dist
+        if x - crop_dist < 0: x0 = 0
+        else: x0 = x - crop_dist
 
-        if y - crop_dist < 0:
-            y0 = 0
-        else:
-            y0 = y - crop_dist
+        if y - crop_dist < 0: y0 = 0
+        else: y0 = y - crop_dist
 
-        if x + crop_dist > x_img:
-            x1 = x_img
-        else:
-            x1 = x + crop_dist
+        if x + crop_dist > x_img: x1 = x_img
+        else: x1 = x + crop_dist
 
-        if y + crop_dist > y_img:
-            y1 = y_img
-        else:
-            y1 = y + crop_dist
+        if y + crop_dist > y_img: y1 = y_img
+        else: y1 = y + crop_dist
 
         return int(x0), int(x1), int(y0), int(y1)
 
     def classify_point(self, mediaobj, x, y, t):
         """ returns: classifier_code, prob """
-        patch_img = self.get_patch(x, y, self.patchsize, mediaobj)
-        predictions = self.predict(patch_img)
-        predictions = predictions[0]
+        patch_img = self.get_patch(x, y, mediaobj)
+        classifier_code, prob = self.predict(patch_img)
+        #predictions = predictions[0]
 
         # prediction in descending probability, and get the index of the max probability to equate to the class label
-        top_k = predictions.argsort()[-3:][::-1]
-        classifier_code = top_k[0]
-        prob = predictions[top_k[0]]
+        #top_k = predictions.argsort()[-3:][::-1]
+        #classifier_code = top_k[0]
+        #prob = predictions[top_k[0]]
         return classifier_code, float(prob)
 
 if __name__ == '__main__':
@@ -136,14 +150,18 @@ if __name__ == '__main__':
     parser = create_parser(TorchBOT)
 
     # Add some additional custom cli args not related to the model
-    parser.add_argument('--annotation_set_id', help="Process specific annotation_set", type=int)
+    parser.add_argument('--annotation_set_id', help="Process specific annotation_set", type=int, default = 8322)
     parser.add_argument('--user_group_id', help="Process all annotation_sets contained in a specific user_group", type=int)
     parser.add_argument('--affiliation_group_id', help="Process all annotation_sets contained in a specific Affiliation", type=int)
     parser.add_argument('--after_date', help="Process all annotation_sets after a date YYYY-MM-DD", type=str)
     parser.add_argument('--media_count_max', help="Filter annotation_sets that have less than a specific number of media objects", type=int)
     
-
     args = parser.parse_args()
+    # Set the host, API key, and label map file for the bot
+    args.host = 'https://staging.squidle.org'
+    args.api_key = 'b113e06bfdd260844b3697be5659f9cd19beebe15231bd12fee3a979'
+    args.label_map_file = '/home/ubuntu/Documents/IMAS/Code/Squidle/bots/kelp_bot_label_map.json'
+
     bot = TorchBOT(**vars(args))
 
     # Initialise annotation_set request using sqapi instance in Annotator class
