@@ -1091,28 +1091,28 @@ if __name__ == '__main__':
     l2_param = 0.01
     #for l2_param in [0.1, 0.01, 0.001]:
     #for backbone_name, no_filters in model_specs:
-    for cross_counter in range(cross_validation):
+    #for cross_counter in range(cross_validation):
         
         # Used for precent test
     #for size in range(12,28,2): #!
-        for size in [18]:
-            if size == 0: size =1
-            crop_perc = size/100 #!
-    
-            study = optuna.create_study(direction="maximize", pruner=optuna.pruners.MedianPruner())
-            study.optimize(objective, n_trials=N_TRIALS, timeout=None)
+    for size in [18]:
+        if size == 0: size =1
+        crop_perc = size/100 #!
 
-            print("Number of finished trials: {}".format(len(study.trials)))
-            print("Best trial:")
-            trial = study.best_trial
+        study = optuna.create_study(direction="maximize", pruner=optuna.pruners.MedianPruner())
+        study.optimize(objective, n_trials=N_TRIALS, timeout=None)
 
-            print("  Value: {}".format(trial.value))
+        print("Number of finished trials: {}".format(len(study.trials)))
+        print("Best trial:")
+        trial = study.best_trial
 
-            print("  Params: ")
-            for key, value in trial.params.items():
-                print("    {}: {}".format(key, value))
+        print("  Value: {}".format(trial.value))
 
-            #importance_dict = optuna.importance.get_param_importances(study)
-            #print(importance_dict)
-                    
-                #cli_main()
+        print("  Params: ")
+        for key, value in trial.params.items():
+            print("    {}: {}".format(key, value))
+
+        #importance_dict = optuna.importance.get_param_importances(study)
+        #print(importance_dict)
+                
+            #cli_main()
