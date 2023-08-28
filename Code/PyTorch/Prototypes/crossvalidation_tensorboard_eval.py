@@ -14,10 +14,9 @@ valid = []
 
 
 ### Get all subfolders (percentages) in log ###
-directory = f'/media/leo/NESP_1/logs/Seagrass_grid_perc/'
-directory = f'/pvol/logs/Macroalgae_Cross_Validation/perc_18/lightning_logs/'
-directory = f'/pvol/logs/Hardcoral_Cross_Validation/perc_20/lightning_logs/'
-directory = f'/pvol/logs/Seagrass_crossvalidation/perc_10/lightning_logs/'
+#directory = f'/pvol/logs/Macroalgae_Cross_Validation/perc_18/lightning_logs/'
+#directory = f'/pvol/logs/Hardcoral_Cross_Validation/perc_20/lightning_logs/'
+#directory = f'/pvol/logs/Seagrass_crossvalidation/perc_10/lightning_logs/'
 directory = f'/pvol/logs/Eck_cross_validation_1/perc_18/lightning_logs/'   
 
 version_list = next(os.walk(directory))[1]#[x[0] for x in os.walk(directory)]
@@ -40,13 +39,17 @@ for method in ['f1_score', 'accuracy']:
         #log_dir = f"/media/leo/NESP_1/logs/Final_Grid_50/{run_name}/perc_{perc}/lightning_logs/version_0/{method}/valid/"
         log_dir = directory + f"version_{version}/{method}/valid/"
         for subdir, dirs, files in os.walk(log_dir):
+            files.sort()
+            #!!! SORT FILES BY NAME 
             file = files[-1]
+            #file = "events.out.tfevents.1685810578.large-gpu-3"
             if file.startswith("events.out"):
                 event_acc = EventAccumulator(os.path.join(subdir, file))
                 event_acc.Reload()
                 for tag in event_acc.Tags()["scalars"]:
                     if method in tag:
                         f1_score = event_acc.Scalars(tag)[-1].value
+                        print(f1_score)
                         valid.append(f1_score)
     if method == 'f1_score':
         f1_valid = valid
