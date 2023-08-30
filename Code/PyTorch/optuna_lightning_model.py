@@ -702,7 +702,7 @@ def get_args():
     parser.add_argument('--img_size', metavar='img_size', type=int, help=
     'Defines the size of the used image.', default=299)
     
-    parser.add_argument('--crop_perc', metavar='crop_perc', type=int, help= 'Defines percentage that is used to crop the image.', default=0.20)
+    parser.add_argument('--crop_perc', metavar='crop_perc', type=float, help= 'Defines percentage that is used to crop the image.', default=0.14)
 
     parser.add_argument('--batch_size', metavar='batch_size', type=int, help= 'Defines batch_size that is used to train algorithm.', default=32) #!
 
@@ -1098,13 +1098,13 @@ if __name__ == '__main__':
     l2_param = 0.01
     #for l2_param in [0.1, 0.01, 0.001]:
     #for backbone_name, no_filters in model_specs:
-    #for cross_counter in range(cross_validation):
+    for cross_counter in range(cross_validation):
         
         # Used for precent test
     #for size in range(12,28,2): #!
-    for size in [1,5,8,10,12,14,15,16,18,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95]:
-        if size == 0: size =1
-        crop_perc = size/100 #!
+    #for size in [1,5,8,10,12,14,15,16,18,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95]:
+        
+        #if size == 0: size =1
 
         study = optuna.create_study(direction="maximize", pruner=optuna.pruners.MedianPruner())
         study.optimize(objective, n_trials=N_TRIALS, timeout=None)
