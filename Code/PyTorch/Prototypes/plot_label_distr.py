@@ -5,9 +5,12 @@ import seaborn as sns
 import numpy as np
 
 # Read CSV files into pandas dataframes
-df1 = pd.read_csv('/home/leo/Documents/IMAS/Code/PyTorch/Annotation_Sets/Paper_Data/1_to_1_Ecklonia_radiata.csv', header=None, names=['label', 'counter'])
-df2 = pd.read_csv('/home/leo/Documents/IMAS/Code/PyTorch/Annotation_Sets/Paper_Data/1_to_10_Ecklonia_radiata.csv', header=None, names=['label', 'counter'])
-df3 = pd.read_csv('/home/leo/Documents/IMAS/Code/PyTorch/Annotation_Sets/Paper_Data/1_to_1_neigh_Ecklonia_radiata.csv', header=None, names=['label', 'counter'])
+
+
+
+df1 = pd.read_csv('/pvol/Final_Eck_1_to_10_Database/Original_images/205282_neighbour_Hard_coral_cover_NMSC_list.csv', header=None, names=['label_name', 'counter'])
+df2 = pd.read_csv('/pvol/Final_Eck_1_to_10_Database/Original_images/22754_neighbour_Seagrass_cover_NMSC_list.csv', header=None, names=['label_name', 'counter'])
+df3 = pd.read_csv('/pvol/Final_Eck_1_to_10_Database/Original_images/405405_neighbour_Macroalgal_canopy_cover_NMSC_list.csv', header=None, names=['label_name', 'counter'])
 
 # Sort the labels by count in descending order and select the top 8
 df1_top8 = df1.sort_values(by='counter', ascending=False).head(8)

@@ -5,8 +5,7 @@ import numpy as np
 import re
 import pandas as pd
 
-filepath = 'Seagrass_2.csv'
-perc = 18
+filepath = 'Seagrass_3.csv'
 method = 'f1_score'
 method = 'accuracy'
 f1_scores = []
@@ -17,7 +16,7 @@ valid = []
 #directory = f'/pvol/logs/Macroalgae_Cross_Validation/perc_18/lightning_logs/'
 #directory = f'/pvol/logs/Hardcoral_Cross_Validation/perc_20/lightning_logs/'
 #directory = f'/pvol/logs/Seagrass_crossvalidation/perc_10/lightning_logs/'
-directory = f'/pvol/logs/Seagrass_Crossvalidation_2/perc_14/lightning_logs/'   
+directory = f'/pvol/logs/Seagrass_Crossvalidation_3/perc_14/lightning_logs/'   
 
 version_list = next(os.walk(directory))[1]#[x[0] for x in os.walk(directory)]
 for idx, entry in enumerate(version_list):
