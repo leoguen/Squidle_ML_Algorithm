@@ -166,6 +166,7 @@ if __name__ == '__main__':
     api_key = text_file.read()
     #close file
     text_file.close()
+    api_token = api_key
     args.label_map_file = '/home/ubuntu/Documents/IMAS/Code/Squidle/bots/kelp_bot_label_map.json'
 
     bot = TorchBOT(**vars(args))

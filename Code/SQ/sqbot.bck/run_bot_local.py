@@ -18,7 +18,14 @@ assert args.annotator in get_annotator_keys(), "Argument required: --annotator. 
 #For testing 
 BotClass = get_annotator_plugin(annotator='RandoBOT')
 #apiargs = ''
-api_token ='b113e06bfdd260844b3697be5659f9cd19beebe15231bd12fee3a979' 
+# Set the host, API key, and label map file for the bot
+#open text file in read mode
+text_file = open("bots/API_KEY.txt", "r")
+#read whole file to a string
+api_key = text_file.read()
+#close file
+text_file.close()
+api_token = api_key
 url='https://staging.squidle.org'  
 user_group_id = '176 '
 label_map_file= '/home/leo/Documents/IMAS/Code/SQ/sqbot/models/demo/random_demo-code_label_map.json'
