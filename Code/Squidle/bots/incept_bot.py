@@ -170,7 +170,13 @@ if __name__ == '__main__':
 
     # Set the host, API key, and label map file for the bot
     args.host = 'https://staging.squidle.org'
-    args.api_key = 'b113e06bfdd260844b3697be5659f9cd19beebe15231bd12fee3a979'
+    # Set the host, API key, and label map file for the bot
+    #open text file in read mode
+    text_file = open("bots/API_KEY.txt", "r")
+    #read whole file to a string
+    api_key = text_file.read()
+    #close file
+    text_file.close()
     args.label_map_file = '/home/ubuntu/Documents/IMAS/Code/Squidle/bots/rando_bot_label_map.json'
 
     # Initialize the InceptBOT with the parsed arguments
