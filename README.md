@@ -1,18 +1,13 @@
 # Code relating to the paper Harnessing the power of SQUIDLE+ to develop flexible machine learning models
 This code uses PyTorch to train an inception_v3 model on a dataset created using the Squidle translation tool.
 
-The first chapter of this README is used to explain the workflow on how to create an individual trainingset and train a model. Further below you can find a more elaborate description of each file. 
-
-
-# Example
-
-The libraries needed to run this experiment are saved in the requirements.txt. 
+The first chapter of this README is used to explain the workflow on how to create an individual trainingset and train a model. Further below you can find a more elaborate description of each file. The libraries needed to run this experiment are saved in the requirements.txt. 
 
 ## First Step 
-You need to run the *create_csv_list.py* file. This is file is used to browse through all the annotationsets that you have access to. To run this script you should edit the following variables in the script itself: 
+You need to run the *create_csv_list.py* file. This is file is used to browse through all the annotationsets that you have access to. To run this script you need to add the following information when running the script (all of them have defaults, so if you are unsure you only need to add the api_token): 
+ + **`api_token`**: (String) path to your api token saved as a .txt file or simply your api_token as a string (can be found on Squidle+ right next to the "SIGN OUT" option in the "My Data" field)
  + **`anno_name`**: (String) path and name of the file and where it is saved
  + **`prob_name`** : (String) path and name of the file in which all unsuccefull donwloads are written and where it is saved
- + **`api_token_path`**: (String) path to your api token saved as a .txt file (can be found on Squidle+ right next to the "SIGN OUT" option in the "My Data" field)
  + **`export_scheme`**: (String) if you leave this as it is there will be an additional columns added to you csv file in which the translated label is saved in the Squidle schema
  + **`bool_translation`**: (Boolean) defines whether the translation column is saved or not
 
