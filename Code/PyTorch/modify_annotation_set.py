@@ -1,9 +1,7 @@
-import csv
+
 import os
 from os import path
 import pandas as pd
-import urllib.request
-import cv2
 import numpy as np
 
 class modify_annotation_set():
@@ -14,12 +12,8 @@ class modify_annotation_set():
         self.download_non_target_annotations = True
         self.sib_factor = 0.3
         self.coi = 'Seagrass cover' #Class of Interest
-        #Seagrass cover 
-        #Macroalgal canopy cover
-        #Hard coral cover
         
-        self.row_name = 'label_translated_name'
-        #'label_name'  
+        self.row_name = 'label_translated_name' #'label_name'  
         self.norm_factor = 1
 
     def delete_entries(self, csv_file_df, label, value):
@@ -83,9 +77,6 @@ class modify_annotation_set():
             # If value negative make it 0
             norm_classes_df = norm_classes_df.clip(lower=0)
             return norm_classes_df, classes_df, addi_anno_coi
-
-
-
             
         if self.sibling:
             print('Loading Sibling List')
@@ -202,7 +193,8 @@ if __name__ == "__main__":
     
     print('Loaded {} entries with filename: {}'.format(len(csv_file_df.index), list_name))
 
-    csv_file_df.columns = csv_file_df.columns.str.replace('[.]', '_', regex=True)
+    csv_file_df.columns = csv_file_df.columns.str.replace('[.]', '_', regex=True) #replace dots with underscores
+
     # Used for NMSC dataset
     values = {"label_translated_name": 'Not of Interest'}
     csv_file_df = csv_file_df.fillna(value=values)

@@ -9,7 +9,7 @@ The first chapter of this README is used to explain the workflow on how to creat
 The libraries needed to run this experiment are saved in the requirements.txt. 
 
 ## First Step 
-You need to run the create_csv_list.py file. This is file is used to browse through all the annotationsets that you have access to. To run this script you should edit the following variables in the script itself: 
+You need to run the *create_csv_list.py* file. This is file is used to browse through all the annotationsets that you have access to. To run this script you should edit the following variables in the script itself: 
  + **anno_name** : name of the file and where it is saved
  + **prob_name** : name of the file in which all unsuccefull donwloads are written and where it is saved
  + **api_token_path** : path to your api token saved as a .txt file (can be found on Squidle+ right next to the "SIGN OUT" option in the "My Data" field)
@@ -21,6 +21,30 @@ This should save a large csv file with several thousands entries. If you have a 
 label.id | label.name | label.uuid | point.id | point.media.deployment.campaign | point.media.path_best | point_x | point_y | ... |label.translated.id | label.translated.name
 --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | 
 10925 | Sand | 8d087... | 5678 | Campaign_XY | https://aws.com | 0.2 | 0.3 |...| 646 | Sand / mud (<2mm)
+
+As you can see from this entry, Squidle+ serves as a platform that saves the links to files uploaded on a respective server and associates them with annotations. This is achieved by assigning a label to a point in the image (identifiable using the unique path). This label corresponds to a specific position in the image defined by 'point_x' and 'point_y.' Since different annotation sets use varying labeling schemas, it can be important to translate them into a unified annotation set. This information can be found in 'label.translated.id' and remains consistent throughout the entire annotation set created in this process. 
+
+## Second Step
+We now have a large csv file which incorporates all accessible annotations. We could train a model on this dataset and would probably achieve sufficient results. But as pointed out in the paper, this would require huge computing resources and/or time. Thus we need to modify our annotation set to acquire a more efficient and reduced dataset, our model-dataset. This is done using the **neighbour method** (for an explanation see paper); basically we define a label-of-interest, we include all labels that belong to this label-of-interest and add them to our model-dataset. Further, if an image has at least on label-of-interest annotation we add all the other labels to our model-dataset as well. 
+
+We do that using the *modify_annotation_set.py* for you as the user the following variables can be customized to tailor the data processing for your machine learning (ML) model training task:
+
++ **`download_non_target_annotations`**: (*Boolean*) Determines whether to download non-target annotations. If set to `True`, additional annotations not related to the class of interest will be included in the dataset.
+
++ **`coi`**: (*String*) Class of Interest (COI) - Specifies the label class that is of primary interest for your ML model training. You can change this to match your target class.
+
++ **`row_name`**: (*String*) Represents the column name used for labeling within the dataset. This variable indicates which column contains the class labels.
+
++ **`norm_factor`**: (*Float*) A factor used for normalization of class counts. Adjust this factor to control the balance between different classes in the resulting dataset.
+
+Less important but also dajustable are the following variables:
+
++ **`red_list`**: (*Boolean*) Specifies whether certain entries should be marked as red-listed. When set to `True`, the code considers red-listed entries during data processing.
+
++ **`sibling`**: (*Boolean*) Indicates whether to consider sibling data. If `True`, the code will handle sibling data differently during normalization.
+
++ **`sib_factor`**: (*Float*) A factor used in calculations related to siblings. This factor affects how sibling data is normalized when `sibling` is set to `True`.
+
 
 
 # File Overview
