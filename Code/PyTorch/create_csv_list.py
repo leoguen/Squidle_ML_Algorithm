@@ -73,10 +73,6 @@ class create_csv_list():
                 decoded_content = download.content.decode('utf-8')
                 df = pd.read_csv(io.StringIO(decoded_content))
                 
-                #with pd.option_context('display.max_rows', None, 'display.max_columns', None):  # more options can be specified also
-                    #print(df.shape[])
-                    #print(df.head(0))
-                
                 try:
                     if bool_translation:
                         df = df[['label.id', 'label.name', 'label.uuid', 'point.id','point.media.deployment.campaign.key' , 'point.media.path_best', 'point.x', 'point.y', 'tag_names', 'label.translated.id','label.translated.lineage_names', 'label.translated.name','label.translated.translation_info','label.translated.uuid' ]]
@@ -88,8 +84,6 @@ class create_csv_list():
                     with open(prob_name, 'a') as f:
                         f.write('\n ID: ' + str(id) + '\n')
                         f.write(str(df.head(0)))
-                    #df = df.insert(0, id, "")
-                    #df.head(0).to_csv(path_or_buf=HERE+prob_name, mode='a', index=False, header=True)
                     continue
                 
 
@@ -98,7 +92,6 @@ class create_csv_list():
                 if id == id_list[0]:
                     header = True
                 
-                #df.drop("Unnamed: 0", axis=1, inplace=True)
                 df.to_csv(path_or_buf=anno_name, mode='a', index=False, header=header)
             counter += 1
             print('CSV file number {}/{} saved for id: {}'.format(counter,len(id_list) , id))
