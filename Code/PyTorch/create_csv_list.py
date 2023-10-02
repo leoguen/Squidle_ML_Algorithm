@@ -3,6 +3,8 @@ import io
 import pandas as pd
 import json
 from datetime import datetime
+import argparse
+import os
 
 class create_csv_list():
     
@@ -10,10 +12,13 @@ class create_csv_list():
     Loads API Token from .txt file
     '''
     def load_token(self, api_token_path):
-        with open(api_token_path, "r") as file:
-            API_TOKEN = file.read().rstrip()
-        #print(API_TOKEN)
-        return API_TOKEN
+        try:
+            with open(api_token_path, "r") as file:
+                api_token = file.read().strip()
+                return api_token
+        except Exception as e:
+            print(f"Error reading API token from file: {str(e)}")
+            return None
 
     '''
     Get Dataset from SQ which contains all accessible annotation sets
@@ -46,7 +51,7 @@ class create_csv_list():
     '''
     Create a .csv file with all entries
     '''
-    def get_annotation_set(self, API_TOKEN, URL,  id_list, export_scheme, bool_translation, anno_name, prob_name):
+    def get_annotation_set(self, API_TOKEN, URL,  id_list, bool_translation, export_scheme, anno_name, prob_name):
         # Create .csv file to append to 
         anno_name = anno_name
         prob_name = prob_name
@@ -98,54 +103,45 @@ class create_csv_list():
             counter += 1
             print('CSV file number {}/{} saved for id: {}'.format(counter,len(id_list) , id))
         return anno_name
+    
+    def api_parse_args(self):
+        parser = argparse.ArgumentParser(description='Enter API token or path to API token saved in .txt')
+        parser.add_argument('--api_token', type=str, default="/home/ubuntu/Documents/IMAS/API_TOKEN.txt", help='Enter API token or path to API token saved in .txt')
+        args = parser.parse_args()
+
+        # Check if the provided value is a file path
+        if os.path.isfile(args.api_token):
+            api_token = self.load_token(args.api_token)
+        else:
+            # Assume the provided value is the API token itself
+            api_token = args.api_token
+        return api_token
+
+    def parse_args(self, id_list):
+        current_date = datetime.now().strftime('%Y%m%d')  # This will give you the date in the format YYYYMMDD
+        parser = argparse.ArgumentParser(description='Create CSV List for Annotation Sets')
+        parser.add_argument('--bool_translation', type=bool, default=True, help='Decide whether to obtain the used labelling scheme or translate it to a different one as well')
+        parser.add_argument('--export_scheme', type=str, default='/export?supplementary_annotation_set_id=&template=dataframe.csv&disposition=attachment&include_columns=["label.id","label.uuid","label.name","label.lineage_names","comment","needs_review","tag_names","updated_at","point.id","point.x","point.y","point.t","point.data","point.is_targeted","point.media.id","point.media.key","point.media.path_best","point.pose.timestamp","point.pose.lat","point.pose.lon","point.pose.alt","point.pose.dep","point.media.deployment.key","point.media.deployment.campaign.key","label.translated.id","label.translated.uuid","label.translated.name","label.translated.lineage_names","label.translated.translation_info"]&f={"operations":[{"module":"pandas","method":"json_normalize"},{"method":"sort_index","kwargs":{"axis":1}}]}&q={"filters":[{"name":"label_id","op":"is_not_null"}]}&translate={"vocab_registry_keys":["worms","caab","catami"],"target_label_scheme_id":"1"}', help='Export scheme for annotation sets')
+        parser.add_argument('--anno_name', type=str, default=f'/pvol/Annotationsets/Full_Annotationsets/{current_date}_{str(len(id_list))}_Full_Annotation_List.csv', help='Annotation set name')
+        parser.add_argument('--prob_name', type=str, default=f'/pvol/Annotationsets/Full_Annotationsets/{current_date}_{str(len(id_list))}_Problem_Files_Full_Annotation_List.csv', help='Problem file name')
+    
+        return parser.parse_args()
 
 if __name__ == "__main__":
     URL = "https://squidle.org/api"
     dataset_url = '/annotation_set'
-    
-    # Decide whether you want to obtain the used labelling scheme or translate it to a different one as well 
-    bool_translation = True
-    
-    # Here you can define your export string you can find it by going into any dataset and exporting it. Then in this menu before clicking "EXPORT ANNOTATION" you can click on "ADVANCED" and then further "Show full API querystring" there you obtain the string. Delete everything up to "/export"
-    # This is a basic translation to the Squidle translation scheme
-    export_scheme = '/export?supplementary_annotation_set_id=&template=dataframe.csv&disposition=attachment&include_columns=["label.id","label.uuid","label.name","label.lineage_names","comment","needs_review","tag_names","updated_at","point.id","point.x","point.y","point.t","point.data","point.is_targeted","point.media.id","point.media.key","point.media.path_best","point.pose.timestamp","point.pose.lat","point.pose.lon","point.pose.alt","point.pose.dep","point.media.deployment.key","point.media.deployment.campaign.key","label.translated.id","label.translated.uuid","label.translated.name","label.translated.lineage_names","label.translated.translation_info"]&f={"operations":[{"module":"pandas","method":"json_normalize"},{"method":"sort_index","kwargs":{"axis":1}}]}&q={"filters":[{"name":"label_id","op":"is_not_null"}]}&translate={"vocab_registry_keys":["worms","caab","catami"],"target_label_scheme_id":"1"}'    
-    
-    #Define the name of the annotation set and the name of the file containing the annotation sets that could not be accessed
-    
-    # Get the current date
-    current_date = datetime.now().strftime('%Y%m%d')  # This will give you the date in the format YYYYMMDD
-    
     data = create_csv_list()
     
     # Read API Token
-    api_token_path = "/home/ubuntu/Documents/IMAS/API_TOKEN.txt"
-    API_TOKEN = data.load_token(api_token_path)
+    api_token = data.api_parse_args()
     
     # Get List of all Annotationset ID accessible to you
-    id_list = data.get_annotation_id(API_TOKEN, URL,  dataset_url)
-    
-    '''
-    # For faster testing pruposes a list file is just loaded
-    # empty list to read list from a file
-    id_list = []
-    
-    # open file and read the content in a list
-    with open(HERE + '/Annotation_Sets/id_list.txt', 'r') as fp:
-        for line in fp:
-            # remove linebreak from a current name
-            # linebreak is the last character of each line
-            x = line[:-1]
-
-            # add current item to the list
-            id_list.append(x)
-
-    print(id_list)'''
+    id_list = data.get_annotation_id(api_token, URL,  dataset_url)
     print('Retrieved a list of {} annotation sets.'.format(len(id_list)))
-    
+
+    args = data.parse_args(id_list)
+
     annotation_url = URL+dataset_url
 
-    # Define the annotation set name and the file name as well as the directory where it should be saved
-    anno_name = f'/pvol/Annotationsets/Full_Annotationsets/{current_date}_{str(len(id_list))}_Full_Annotation_List.csv'
-    prob_name = f'/pvol/Annotationsets/Full_Annotationsets/{current_date}_{str(len(id_list))}_Problem_Files_Full_Annotation_List.csv'
-    NAME = data.get_annotation_set(API_TOKEN, annotation_url,  id_list, bool_translation, export_scheme,anno_name, prob_name)
+    data.get_annotation_set(api_token, annotation_url,  id_list, args.bool_translation, args.export_scheme, args.anno_name, args.prob_name)
 
