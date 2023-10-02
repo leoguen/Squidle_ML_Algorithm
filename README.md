@@ -10,11 +10,11 @@ The libraries needed to run this experiment are saved in the requirements.txt.
 
 ## First Step 
 You need to run the *create_csv_list.py* file. This is file is used to browse through all the annotationsets that you have access to. To run this script you should edit the following variables in the script itself: 
- + **anno_name** : name of the file and where it is saved
- + **prob_name** : name of the file in which all unsuccefull donwloads are written and where it is saved
- + **api_token_path** : path to your api token saved as a .txt file (can be found on Squidle+ right next to the "SIGN OUT" option in the "My Data" field)
- + **export_scheme** : if you leave this as it is there will be an additional columns added to you csv file in which the translated label is saved in the Squidle schema
- + **bool_translation** : defines whether the translation column is saved or not
+ + **`anno_name`**: (String) path and name of the file and where it is saved
+ + **`prob_name`** : (String) path and name of the file in which all unsuccefull donwloads are written and where it is saved
+ + **`api_token_path`**: (String) path to your api token saved as a .txt file (can be found on Squidle+ right next to the "SIGN OUT" option in the "My Data" field)
+ + **`export_scheme`**: (String) if you leave this as it is there will be an additional columns added to you csv file in which the translated label is saved in the Squidle schema
+ + **`bool_translation`**: (Boolean) defines whether the translation column is saved or not
 
 This should save a large csv file with several thousands entries. If you have a look at the file it self you will find a setup similar to this: 
 
@@ -29,23 +29,23 @@ We now have a large csv file which incorporates all accessible annotations. We c
 
 We do that using the *modify_annotation_set.py* for you as the user the following variables can be customized to tailor the data processing for your machine learning (ML) model training task:
 
-+ **`download_non_target_annotations`**: (*Boolean*) Determines whether to download non-target annotations. If set to `True`, additional annotations not related to the class of interest will be included in the dataset.
++ **`neighbour`**: (*Boolean*) Determines whether to use neighbour method. If set to **True**, additional annotations not related to the class of interest will be included in the dataset.
 
 + **`coi`**: (*String*) Class of Interest (COI) - Specifies the label class that is of primary interest for your ML model training. You can change this to match your target class.
 
-+ **`row_name`**: (*String*) Represents the column name used for labeling within the dataset. This variable indicates which column contains the class labels.
++ **`row_name`**: (*String*) Represents the column name used for labeling within the dataset. This will mostly be 'label_translated_name' if you are using the translation service or 'label_name' if you decide not to use it.
 
-+ **`norm_factor`**: (*Float*) A factor used for normalization of class counts. Adjust this factor to control the balance between different classes in the resulting dataset.
++ **`norm_factor`**: (*Float*) A factor used for normalization of class counts. Adjust this factor to control the balance between different classes in the resulting dataset. A factor of 1 will match the amount of COI entries with an equal amount Not-Of-Interestl-Casses (NOIC). A factor 10 would lead to 10 times as many NOIC entries as COI entries. 
 
-Less important but also dajustable are the following variables:
+Less important but also adjustable are the following variables:
 
-+ **`red_list`**: (*Boolean*) Specifies whether certain entries should be marked as red-listed. When set to `True`, the code considers red-listed entries during data processing.
++ **`red_list`**: (*Boolean*) Specifies whether certain entries should be marked as red-listed. If **True** the entries can be inserted using a .txt file. 
 
-+ **`sibling`**: (*Boolean*) Indicates whether to consider sibling data. If `True`, the code will handle sibling data differently during normalization.
++ **`sibling`**: (*Boolean*) Indicates whether to consider sibling data. If `True`, the code will handle sibling data differently during normalization. This stems from an earlier version of the code an gives the user the opportunity to include soecific species at a higher percentage rate (e.g. if you want a higher percentage of "red sponges" in your model-set set you can include them here).
 
-+ **`sib_factor`**: (*Float*) A factor used in calculations related to siblings. This factor affects how sibling data is normalized when `sibling` is set to `True`.
++ **`sib_factor`**: (*Float*) This factor is then used in the calculations related to siblings and increases the presence of these species in the modelset.
 
-
+This file 
 
 # File Overview
 ## Create_csv_list.py 

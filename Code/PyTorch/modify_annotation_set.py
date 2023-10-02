@@ -9,7 +9,7 @@ class modify_annotation_set():
     def __init__(self):
         self.sibling = False
         self.red_list = False
-        self.download_non_target_annotations = True
+        self.neighbour = True
         self.sib_factor = 0.3
         self.coi = 'Seagrass cover' #Class of Interest
         
@@ -41,8 +41,8 @@ class modify_annotation_set():
         # Get list with all labels and count of each
         classes_df = csv_file_df.pivot_table(index = [self.row_name], aggfunc ='size')
         #classes_df = classes_df.index.drop_duplicates(keep='first')
-        if self.download_non_target_annotations:
-            print('self.download_non_target_annotations is set to True')
+        if self.neighbour:
+            print('self.neighbour is set to True')
             # Get all COI rows in csv_file_df
             only_coi_df = csv_file_df.loc[csv_file_df[self.row_name] == self.coi]
 
@@ -116,7 +116,7 @@ class modify_annotation_set():
     
     def normalize_set(self, csv_file_df):
         csv_file_df = self.delete_review(csv_file_df)
-        if self.download_non_target_annotations: 
+        if self.neighbour: 
             norm_classes_df, classes_df, addi_anno_coi = self.get_norm_csv(csv_file_df)
             # drop the additional annotations from csv_file_df
             cond = csv_file_df['point_id'].isin(addi_anno_coi['point_id'])
@@ -150,7 +150,7 @@ class modify_annotation_set():
             except:
                 print('{} all {} entries deleted'.format(label, remove_n))
             '''
-        if self.download_non_target_annotations:
+        if self.neighbour:
             #add addi_anno_coi to csv_file_df
             print('')
             print(len(csv_file_df))
@@ -174,7 +174,7 @@ class modify_annotation_set():
             path =here+'/Annotation_Sets/'+ str(len(csv_file_df.index))+'_' + str(int(self.sib_factor*100)) +'_sibling_'+ description +'_list.csv'
         elif self.norm_factor != 1:
             path =here+'/Annotation_Sets/'+ str(len(csv_file_df.index))+'_1_to_' + str(int(self.norm_factor)) + description +'_list.csv'
-        elif self.download_non_target_annotations:
+        elif self.neighbour:
             path =here+'/Annotation_Sets/'+ str(len(csv_file_df.index))+'_neighbour_' + description +'_list.csv'
         else: 
             path = here+'/Annotation_Sets/'+ str(len(csv_file_df.index))+'_'+ description +'_list.csv'
