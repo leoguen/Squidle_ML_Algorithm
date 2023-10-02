@@ -1,18 +1,16 @@
 import requests
 import io
-from io import BytesIO
-import csv
-import os
 import pandas as pd
 import json
+from datetime import datetime
 
 class create_csv_list():
     
     '''
     Loads API Token from .txt file
     '''
-    def load_token(self, HERE):
-        with open(HERE + '/API_TOKEN.txt', "r") as file:
+    def load_token(self, api_token_path):
+        with open(api_token_path, "r") as file:
             API_TOKEN = file.read().rstrip()
         #print(API_TOKEN)
         return API_TOKEN
@@ -20,7 +18,7 @@ class create_csv_list():
     '''
     Get Dataset from SQ which contains all accessible annotation sets
     '''
-    def get_annotation_id(self, API_TOKEN, URL, dataset_url, here):
+    def get_annotation_id(self, API_TOKEN, URL, dataset_url):
         with requests.Session() as s:
             id_list = []
             head = {'auth-token': API_TOKEN}
@@ -48,22 +46,21 @@ class create_csv_list():
     '''
     Create a .csv file with all entries
     '''
-    def get_annotation_set(self, API_TOKEN, URL,  id_list, HERE):
+    def get_annotation_set(self, API_TOKEN, URL,  id_list, export_scheme, bool_translation, anno_name, prob_name):
         # Create .csv file to append to 
-        anno_name = '/Annotation_Sets/737_Full_Annotation_List.csv'
-        prob_name = '/Annotation_Sets/737_Problem_Files_Annotation_List.csv'
+        anno_name = anno_name
+        prob_name = prob_name
         
-        with open(HERE + anno_name, 'w') as creating_new_csv_file: 
+        with open(anno_name, 'w') as creating_new_csv_file: 
             pass
 
-        with open(HERE + prob_name, 'w') as creating_new_csv_file: 
+        with open(prob_name, 'w') as creating_new_csv_file: 
             pass
         
         counter = 0
         # Iterate through all annotation ids
         for id in id_list: 
-            annotation_url = '/' + str(id) + '/export?template=dataframe.csv&disposition=attachment&include_columns=["label.id","label.uuid","label.name","tag_names","point.id","point.media.deployment.campaign.key","point.x","point.y","point.t","point.data","point.media.id","point.media.path_best","point.pose.timestamp","point.pose.lat","point.pose.lon","point.pose.alt","point.pose.dep","label.translated.id","label.translated.uuid","label.translated.name","label.translated.lineage_names","label.translated.translation_info"]&f={"operations":[{"module":"pandas","method":"json_normalize"},{"method":"sort_index","kwargs":{"axis":1}}]}&q={"filters":[{"name":"point","op":"has","val":{"name":"has_xy","op":"eq","val":true}},{"name":"label_id","op":"is_not_null"}]}&translate={"vocab_registry_keys":["worms","caab","catami"],"target_label_scheme_id":65}'
-            
+            annotation_url = '/' + str(id) + export_scheme
             with requests.Session() as s:
                 head = {'auth-token': API_TOKEN}
                 #print(URL+annotation_url)
@@ -83,7 +80,7 @@ class create_csv_list():
                 except:
                     print("Problem with annotationset {}, will be skipped".format(id))
                     print(df.head(0))
-                    with open('/home/ubuntu/Documents/IMAS/Code/PyTorch' + prob_name, 'a') as f:
+                    with open(prob_name, 'a') as f:
                         f.write('\n ID: ' + str(id) + '\n')
                         f.write(str(df.head(0)))
                     #df = df.insert(0, id, "")
@@ -97,7 +94,7 @@ class create_csv_list():
                     header = True
                 
                 #df.drop("Unnamed: 0", axis=1, inplace=True)
-                df.to_csv(path_or_buf=HERE+anno_name, mode='a', index=False, header=header)
+                df.to_csv(path_or_buf=anno_name, mode='a', index=False, header=header)
             counter += 1
             print('CSV file number {}/{} saved for id: {}'.format(counter,len(id_list) , id))
         return anno_name
@@ -105,12 +102,27 @@ class create_csv_list():
 if __name__ == "__main__":
     URL = "https://squidle.org/api"
     dataset_url = '/annotation_set'
-    bool_translation = False
-    HERE = os.path.dirname(os.path.abspath(__file__))
-    data = create_csv_list()
-    API_TOKEN = data.load_token(HERE)
     
-    id_list = data.get_annotation_id(API_TOKEN, URL,  dataset_url, HERE)
+    # Decide whether you want to obtain the used labelling scheme or translate it to a different one as well 
+    bool_translation = True
+    
+    # Here you can define your export string you can find it by going into any dataset and exporting it. Then in this menu before clicking "EXPORT ANNOTATION" you can click on "ADVANCED" and then further "Show full API querystring" there you obtain the string. Delete everything up to "/export"
+    # This is a basic translation to the Squidle translation scheme
+    export_scheme = '/export?supplementary_annotation_set_id=&template=dataframe.csv&disposition=attachment&include_columns=["label.id","label.uuid","label.name","label.lineage_names","comment","needs_review","tag_names","updated_at","point.id","point.x","point.y","point.t","point.data","point.is_targeted","point.media.id","point.media.key","point.media.path_best","point.pose.timestamp","point.pose.lat","point.pose.lon","point.pose.alt","point.pose.dep","point.media.deployment.key","point.media.deployment.campaign.key","label.translated.id","label.translated.uuid","label.translated.name","label.translated.lineage_names","label.translated.translation_info"]&f={"operations":[{"module":"pandas","method":"json_normalize"},{"method":"sort_index","kwargs":{"axis":1}}]}&q={"filters":[{"name":"label_id","op":"is_not_null"}]}&translate={"vocab_registry_keys":["worms","caab","catami"],"target_label_scheme_id":"1"}'    
+    
+    #Define the name of the annotation set and the name of the file containing the annotation sets that could not be accessed
+    
+    # Get the current date
+    current_date = datetime.now().strftime('%Y%m%d')  # This will give you the date in the format YYYYMMDD
+    
+    data = create_csv_list()
+    
+    # Read API Token
+    api_token_path = "/home/ubuntu/Documents/IMAS/API_TOKEN.txt"
+    API_TOKEN = data.load_token(api_token_path)
+    
+    # Get List of all Annotationset ID accessible to you
+    id_list = data.get_annotation_id(API_TOKEN, URL,  dataset_url)
     
     '''
     # For faster testing pruposes a list file is just loaded
@@ -129,6 +141,11 @@ if __name__ == "__main__":
 
     print(id_list)'''
     print('Retrieved a list of {} annotation sets.'.format(len(id_list)))
+    
     annotation_url = URL+dataset_url
-    NAME = data.get_annotation_set(API_TOKEN, annotation_url,  id_list, HERE)
+
+    # Define the annotation set name and the file name as well as the directory where it should be saved
+    anno_name = f'/pvol/Annotationsets/Full_Annotationsets/{current_date}_{str(len(id_list))}_Full_Annotation_List.csv'
+    prob_name = f'/pvol/Annotationsets/Full_Annotationsets/{current_date}_{str(len(id_list))}_Problem_Files_Full_Annotation_List.csv'
+    NAME = data.get_annotation_set(API_TOKEN, annotation_url,  id_list, bool_translation, export_scheme,anno_name, prob_name)
 
