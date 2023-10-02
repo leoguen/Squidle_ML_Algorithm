@@ -1,10 +1,30 @@
-#Code relating to the paper Harnessing the power of SQUIDLE+ to develop
-flexible machine learning models
+# Code relating to the paper Harnessing the power of SQUIDLE+ to develop flexible machine learning models
+This code uses PyTorch to train an inception_v3 model on a dataset created using the Squidle translation tool.
 
-In the follwowing there will be a general overview of all functions contained in the scope of this project. If you are looking for an example on how to create your own dataset or train your own model see further below. This code uses PyTorch to train an inception_v3 model on a dataset created using the Squidle translation tool.
+The first chapter of this README is used to explain the workflow on how to create an individual trainingset and train a model. Further below you can find a more elaborate description of each file. 
 
-#File Overview
-##Create_csv_list.py 
+
+# Example
+
+The libraries needed to run this experiment are saved in the requirements.txt. 
+
+## First Step 
+You need to run the create_csv_list.py file. This is file is used to browse through all the annotationsets that you have access to. To run this script you should edit the following variables in the script itself: 
+ + **anno_name** : name of the file and where it is saved
+ + **prob_name** : name of the file in which all unsuccefull donwloads are written and where it is saved
+ + **api_token_path** : path to your api token saved as a .txt file (can be found on Squidle+ right next to the "SIGN OUT" option in the "My Data" field)
+ + **export_scheme** : if you leave this as it is there will be an additional columns added to you csv file in which the translated label is saved in the Squidle schema
+ + **bool_translation** : defines whether the translation column is saved or not
+
+This should save a large csv file with several thousands entries. If you have a look at the file it self you will find a setup similar to this: 
+
+label.id | label.name | label.uuid | point.id | point.media.deployment.campaign | point.media.path_best | point_x | point_y | ... |label.translated.id | label.translated.name
+--- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | 
+10925 | Sand | 8d087... | 5678 | Campaign_XY | https://aws.com | 0.2 | 0.3 |...| 646 | Sand / mud (<2mm)
+
+
+# File Overview
+## Create_csv_list.py 
 Used to create a large csv file with all annotationssets that are accessible to you.
 This is a Python script that defines a class called create_csv_list which is used to download and save data from a web API in CSV format.Here is a brief description of each method:
 
@@ -15,7 +35,7 @@ get_annotation_id(): This method uses the API token to retrieve a dataset from S
 get_annotation_set(): This method uses the API token and the id list to retrieve the annotations for each id. For each annotation set, the method sends a GET request to the API to download a CSV file containing all the annotations. The CSV file is then saved to disk.
 
 
-##modify_annotation_set.py 
+## modify_annotation_set.py 
 This code defines a Python class named "modify_annotation_set" that contains several methods for manipulating annotation data stored in CSV files. The methods defined in the class are as follows:
 
 init: Constructor method that initializes two instance variables, self.sibling and self.sib_factor, to False and 0.3, respectively. This variable can be used to enhance the number of entries of a specific group.
@@ -53,22 +73,4 @@ The class saves several files to the save_path directory:
 
 4. Run the optuna_lightning_model.py to train the model on the images. 
  
-#Example
-
-The libraries needed to run this experiment are saved in the requirements.txt. 
-
-##First Step 
-You need to run the create_csv_list.py file. This is file is used to browse through all the annotationsets that you have access to. To run this script you should edit the following variables in the script itself: 
-**anno_name** : name of the file and where it is saved
-**prob_name** : name of the file in which all unsuccefull donwloads are written and where it is saved
-**api_token_path** : path to your api token saved as a .txt file (can be found on Squidle+ right next to the "SIGN OUT" option in the "My Data" field)
-**export_scheme** : if you leave this as it is there will be an additional columns added to you csv file in which the translated label is saved in the Squidle schema
-**bool_translation** : defines whether the translation column is saved or not
-
-This should save a large csv file with several thousands entries. If you have a look at the file it self you will find a setup similar to this: 
-
-label.id | label.name | label.uuid | point.id | point.media.deployment.campaign | point.media.path_best | point_x | point_y | ... |label.translated.id | label.translated.name
---- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | 
-10925 | Sand | 8d087... | 5678 | Campaign_XY | https://aws.com | 0.2 | 0.3 |...| 646 | Sand / mud (<2mm)
-
 
