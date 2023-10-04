@@ -86,16 +86,31 @@ class create_csv_list():
                         f.write(str(df.head(0)))
                     continue
                 
-
                 # Skips header if this is not the first object
                 header = False
                 if id == id_list[0]:
                     header = True
                 
                 df.to_csv(path_or_buf=anno_name, mode='a', index=False, header=header)
+                
             counter += 1
             print('CSV file number {}/{} saved for id: {}'.format(counter,len(id_list) , id))
+        # create pivot table
+        self.create_pivot_csv(df, anno_name)
         return anno_name
+    
+    def create_pivot_csv(self, df, anno_name):
+        pivot_df = df.pivot_table(index = ['label.translated.lineage_names'], aggfunc ='size')
+        pivot_df = pivot_df.sort_values(ascending=False)
+        # Find the index where you want to insert the text (before the file extension)
+        index = anno_name.rfind(".csv")
+
+        if index != -1:
+            # Insert the text before the file extension
+            new_anno_name = anno_name[:index] + "_pivot_table" + anno_name[index:]
+        else:
+            print("Invalid file path format (must end with '.csv').")
+        pivot_df.to_csv(new_anno_name)
     
     def api_parse_args(self):
         parser = argparse.ArgumentParser(description='Enter API token or path to API token saved in .txt')
@@ -136,5 +151,4 @@ if __name__ == "__main__":
 
     annotation_url = URL+dataset_url
 
-    data.get_annotation_set(api_token, annotation_url,  id_list, args.bool_translation, args.export_scheme, args.anno_name, args.prob_name)
-
+    annotation_name = data.get_annotation_set(api_token, annotation_url,  id_list, args.bool_translation, args.export_scheme, args.anno_name, args.prob_name)
