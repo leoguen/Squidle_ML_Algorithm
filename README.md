@@ -19,6 +19,25 @@ label.id | label.name | label.uuid | point.id | point.media.deployment.campaign 
 
 As you can see from this entry, Squidle+ serves as a platform that saves the links to files uploaded on a respective server and associates them with annotations. This is achieved by assigning a label to a point in the image (identifiable using the unique path). This label corresponds to a specific position in the image defined by 'point_x' and 'point_y.' Since different annotation sets use varying labeling schemas, it can be important to translate them into a unified annotation set. This information can be found in 'label.translated.id' and remains consistent throughout the entire annotation set created in this process. 
 
+Together with the Annotationset there is a file with a similar name only ending in "_pivot_table" in the same directory. This file shows all the label (defined by their lineage) and the count of entries you have in your dataset. It could look for example like this: 
+
+label.translated.lineage_names |  | 
+--- | --- |
+Physical > Substrate > Unconsolidated (soft) > Sand / mud (<2mm) > Coarse sand (with shell fragments) | 329721
+--- | --- |
+Biota > Macroalgae | 246020
+--- | --- |
+Biota > Macroalgae > Filamentous / filiform | 121946
+--- | --- |
+Biota | 119630
+--- | --- |
+Physical > Substrate > Unconsolidated (soft) > Sand / mud (<2mm) | 115163
+--- | --- |
+Physical > Substrate > Unconsolidated (soft) > Sand / mud (<2mm) > Mud / silt (<64um) | 114601
+--- | --- |
+
+We can see in this file that we have access to 329721 *Coarse sand (with shell fragments)* entries, 246020 *Macroalgae* and 121946 *Filamentous / filiform* entries. It is very important to be aware of the lineage of the label that you want to train. I fyou would like to train for example a classifier on *Filamentous / filiform* you should probably exclude labels like *Macroalgae* as they might include *Filamentous / filiform* entries, just that in the project it was not necessary to go down to the morphospecies level. This can be done using the red_list option in the *modify_annotation.py* set. For this example we want to train a *Sand / mud (<2mm)* classifier and don't care about lower level specifications (like *Mud / silt (<64um)*). Therefore we can just include everything that has the lineage of *Physical > Substrate > Unconsolidated (soft) > Sand / mud (<2mm)*.
+
 ## Second Step
 We now have a large csv file which incorporates all accessible annotations. We could train a model on this dataset and would probably achieve sufficient results. But as pointed out in the paper, this would require huge computing resources and/or time. Thus we need to modify our annotation set to acquire a more efficient and reduced dataset, our model-dataset. This is done using the **neighbour method** (for an explanation see paper); basically we define a label-of-interest, we include all labels that belong to this label-of-interest and add them to our model-dataset. Further, if an image has at least on label-of-interest annotation we add all the other labels to our model-dataset as well. 
 
