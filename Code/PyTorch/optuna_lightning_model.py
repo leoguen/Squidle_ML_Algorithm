@@ -1,32 +1,20 @@
-from argparse import ArgumentParser
-import os
 import torch
 import pytorch_lightning as pl
 import torch.nn as nn
 from torch.nn import functional as F
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader
 import torchmetrics
 import torchvision
 import torchvision.models as models
 from torchvision import transforms
 from torch.utils.tensorboard import SummaryWriter
-from pytorch_lightning import loggers as pl_loggers
 from torch.utils.data.dataset import Dataset
 import glob
 import cv2
 import random
 import optuna
-from optuna.integration import PyTorchLightningPruningCallback
-from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
-from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from torchmetrics.classification import BinaryF1Score
-from pytorch_lightning.callbacks import TQDMProgressBar
-from torchmetrics.classification import BinaryPrecision
-from torchmetrics.classification import BinaryAccuracy
-from torchmetrics.classification import BinaryRecall
-from pytorch_lightning.callbacks import Callback
 from pytorch_lightning import LightningModule
-from pytorch_lightning import Trainer
 import warnings
 import numpy as np
 from PIL import Image
@@ -36,13 +24,7 @@ import re
 import pandas as pd
 from os.path import isfile, join
 from os import listdir
-from sklearn.metrics import confusion_matrix
-import seaborn as sn
-import pandas as pd
 import matplotlib.pyplot as plt
-
-#import torch.multiprocessing
-#torch.multiprocessing.set_sharing_strategy('file_system')
 
 writer = SummaryWriter()
 
@@ -64,10 +46,10 @@ class CSV_Dataset(Dataset):
         img_path = str(re.sub(r'(.*)/.*', '\\1', self.csv_data_path)) + '/All_Images/' +self.csv_file_df.file_name.iloc[idx]
         class_id = torch.tensor(0)
         if label_name == 'Ecklonia radiata':
-            if self.csv_file_df.label_name.iloc[idx] == label_name: 
+            if self.csv_file_df[col_name].iloc[idx] == label_name: 
                 class_id = torch.tensor(1)
         else: #If translated labels are used
-            if self.csv_file_df.label_translated_name.iloc[idx] == label_name: 
+            if self.csv_file_df[col_name].iloc[idx] == label_name: 
                 class_id = torch.tensor(1) 
         img = cv2.imread(img_path)
         #class_id = self.class_map[class_name]
@@ -132,28 +114,6 @@ class CSV_Dataset(Dataset):
                 train_transforms.transforms.append(transforms.Resize((299, 299)))
                 train_transforms.transforms.append(transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]))
 
-                '''
-                train_transforms = transforms.Compose([
-                transforms.RandomEqualize(p=1.0),
-                transforms.ToTensor(), # ToTensor : [0, 255] -> [0, 1]
-                #Test what happens if resize last step
-                transforms.RandomRotation(degrees=(-20, 20)),
-                transforms.RandomErasing(),
-                transforms.RandomPerspective(distortion_scale=0.3),
-                transforms.RandomAffine(degrees=(-20, 20), translate=(0.1, 0.15), scale=(0.9, 1.2)),
-                transforms.RandomVerticalFlip(p=0.5),
-                transforms.RandomHorizontalFlip(p=0.5),
-                transforms.RandomInvert(),
-                transforms.ColorJitter(brightness=0.2, hue=0.0, saturation=0.2, contrast=0.2),
-                transforms.ElasticTransform(alpha=120.0),
-                transforms.RandomAutocontrast(),
-                transforms.RandomGrayscale(),
-                transforms.CenterCrop([int(x_crop_size*0.9), int(y_crop_size*0.9)]),
-                transforms.Resize((299, 299)), 
-                transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                    std=[0.229, 0.224, 0.225]),
-                ])
-                '''
         else:
             train_transforms = transforms.Compose([
             transforms.Resize((299, 299)),
@@ -164,87 +124,7 @@ class CSV_Dataset(Dataset):
         img_tensor = train_transforms(cropped_img)
 
         return img_tensor, class_id
-
-class GeneralDataset(Dataset):
-    def __init__(self, img_size, test_list, test, inception, test_img_path):
-        self.inception = inception
-        self.test_indicator = test
-        if test: # True test dataset is returned
-            if test_list != []: # Dataset should be extracted out of training dataset
-                # Add unpadded and padded entries to data
-                self.data = test_list[0]
-                self.data = self.data + test_list[1]
-                self.class_map = {"Ecklonia" : 1, "Others": 0}
-            else: # Testdataset should be used
-                self.imgs_path = test_img_path + str(img_size)+ '_images/'
-                file_list = [self.imgs_path + 'Others', self.imgs_path + 'Ecklonia', self.imgs_path + 'Padding/Others', self.imgs_path + 'Padding/Ecklonia']
-                self.data = []
-                for class_path in file_list:
-                    class_name = class_path.split("/")[-1]
-                    for img_path in glob.glob(class_path + "/*.jpg"):
-                        self.data.append([img_path, class_name])
-                self.class_map = {"Ecklonia" : 1, "Others": 0}
-        else: 
-            self.imgs_path = IMG_PATH + str(img_size)+ '_images/'
-            file_list = [self.imgs_path + 'Others', self.imgs_path + 'Padding/Others', self.imgs_path + 'Ecklonia', self.imgs_path + 'Padding/Ecklonia']
-            self.data = []
-            for class_path in file_list:
-                class_name = class_path.split("/")[-1]
-                for img_path in glob.glob(class_path + "/*.jpg"):
-                    self.data.append([img_path, class_name])
-            
-            # Delete all entries that are used in test_list
-            #del_counter = len(self.data)
-            #print('Loaded created dataset of {} entries. \nNow deleting {} duplicate entries.'.format(len(self.data), len(test_list[0])))
-            if test_list != []: # if test dataset is not extracted out of trainig dataset
-                for test_entry in (test_list[0]):
-                    if test_entry in self.data:
-                        self.data.remove(test_entry)
-
-            #print('Deleted {} duplicate entries'.format(del_counter-len(self.data)))
-            self.class_map = {"Ecklonia" : 1, "Others": 0}
-        
-    def __len__(self):
-        return len(self.data)    
     
-    def __getitem__(self, idx):
-        img_path, class_name = self.data[idx]
-        img = cv2.imread(img_path)
-        class_id = self.class_map[class_name]
-        img = Image.fromarray(img)
-        if self.inception:
-            if self.test_indicator: 
-                train_transforms = transforms.Compose([
-                transforms.Resize((299, 299)),
-                transforms.ToTensor(), # ToTensor : [0, 255] -> [0, 1]
-                transforms.Normalize(
-                    mean=[0.485, 0.456, 0.406],
-                    std=[0.229, 0.224, 0.225]),
-                ])
-            else:
-                train_transforms = transforms.Compose([
-                transforms.Resize((299, 299)),
-                transforms.RandomVerticalFlip(p=0.5),
-                transforms.RandomHorizontalFlip(p=0.5),
-                transforms.RandomAutocontrast(p=0.5),
-                #transforms.RandomEqualize(p=0.4),
-                transforms.ColorJitter(brightness=0.5, hue=0.2),
-                transforms.ToTensor(), # ToTensor : [0, 255] -> [0, 1]
-                transforms.Normalize(
-                    mean=[0.485, 0.456, 0.406],
-                    std=[0.229, 0.224, 0.225]),
-                ])
-        else:
-            train_transforms = transforms.Compose([
-            transforms.ToTensor(), # ToTensor : [0, 255] -> [0, 1]
-            transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                std=[0.229, 0.224, 0.225])
-            ])
-        img_tensor = train_transforms(img)
-        #print(type(img_tensor))
-        class_id = torch.tensor(class_id)
-        return img_tensor, class_id
-
 class KelpClassifier(pl.LightningModule):
     def __init__(self, backbone_name, no_filters, LEARNING_RATE ,trainer, trial, img_size, batch_size): #dropout, learning_rate, 
         super().__init__()
@@ -290,14 +170,11 @@ class KelpClassifier(pl.LightningModule):
 
     def train_dataloader(self):
         train_dataloader = DataLoader(training_set, batch_size=self.batch_size, num_workers=30)#os.cpu_count(),shuffle=False)
-        #display_dataloader(train_dataloader, 'train_dataloader')
         return train_dataloader
     
     def val_dataloader(self):
         val_dataloader = DataLoader(validation_set, batch_size=self.batch_size, num_workers=30)#os.cpu_count(),shuffle=False)
-        #display_dataloader(val_dataloader, 'val_dataloader')
         return val_dataloader
-        #return DataLoader(validation_set, batch_size=self.batch_size, num_workers=os.cpu_count(),shuffle=False)
     
     def on_validation_end(self):
             epoch = self.current_epoch
@@ -363,12 +240,8 @@ class KelpClassifier(pl.LightningModule):
         global path_label
         test_results = torch.cat((prob, y.unsqueeze(dim=1)), dim=1)#.cpu().numpy()
         test_results = torch.cat((test_results, top_class.unsqueeze(dim=1)), dim=1).cpu().numpy()
-        #T = torch.cat((prob,y), -1)
         self.csv_test_results[path_label].extend(test_results)
 
-        #self.csv_test_results[path_label] = torch.cat((self.csv_test_results[path_label], test_results.unsqueeze(dim=1)), dim=1)
-        #self.log('f1_score', f1_score)
-        #return f1_score
     
     def on_train_epoch_end(self):
         #value, var, name
@@ -413,11 +286,6 @@ class KelpClassifier(pl.LightningModule):
             else: 
                 self.logger.experiment.add_scalars('test_'+var, {name: metric_list[i]},path_label)
         
-        #plot_confusion_matrix(self)
-        
-        # Add ROC curve
-        #create_roc_curve(self)
-        
         # Add probability histogramm to log
         if real_test: prob_name = name+'/'+str(path_label)
         else: prob_name = name
@@ -433,18 +301,15 @@ class KelpClassifier(pl.LightningModule):
     def predict_step(self, batch, batch_idx): 
         # This can be used for implementation
         x, y = batch
-        #x, y = batch
         y_hat = self(x)
         #loss = F.cross_entropy(y_hat, y)
         prob = F.softmax(y_hat, dim=1)
         top_p, top_class = prob.topk(1, dim = 1)
-        
-        #return int(top_class.data[0][0]), float(top_p.data[0][0])
+
         return batch_idx, int(y[0]), int(top_class.data[0][0]), float(top_p.data[0][0])
 
     def configure_optimizers(self):
         return getattr(torch.optim, optimizer_name)(self.parameters(),weight_decay=l2_param, lr=self.hparams.learning_rate)
-        #return torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
 
 def save_test_csv(self):
     global path_label
@@ -473,42 +338,6 @@ def save_test_csv(self):
     #df.to_csv(LOGGER_PATH + LOG_NAME +'/'+ str(img_size)+'/lightnings_logs/test_results_'+ path_list[path_label]+'.csv')
     df.to_csv(test_csv_path)
     
-
-def plot_confusion_matrix(self):
-    #! self.test has TP on [2], TN on [3], FP on [4], FN on [5]
-    fig, ax = plt.subplots()
-
-    # hide axes
-    fig.patch.set_visible(False)
-    ax.axis('off')
-    ax.axis('tight')
-    np_values = np.array([['Ecklonia', np.sum(self.test_losses[2]), np.sum(self.test_losses[4])], ['Others', np.sum(self.test_losses[5]), np.sum(self.test_losses[3])]])
-    
-    df = pd.DataFrame(np_values, columns=['Pred/True', 'Ecklonia', 'Others'])
-
-    the_table = ax.table(cellText=df.values, colLabels=df.columns, loc='center')
-    the_table[(1, 1)].set_facecolor("#B0FAA4")
-    the_table[(2, 2)].set_facecolor("#B0FAA4")
-    the_table[(1, 2)].set_facecolor("#F06969")
-    the_table[(2, 1)].set_facecolor("#F06969")
-    the_table.set_fontsize(30)
-    the_table.auto_set_column_width(col=list(range(3)))
-    the_table.scale(4,4)
-    #table[(1, 0)].set_facecolor("B0FAA4")
-    #F06969
-
-    fig.tight_layout()
-    fig.canvas.draw()
-
-    # Now we can save it to a numpy array.
-    data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-    data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-    #plt.show()
-    tensorboard = self.logger.experiment
-    tensorboard.add_image('Confusion Matrix Test' , data, path_label, dataformats='HWC')
-
-    plt.close()
-
 
 def get_crop_points(self, x, y, original_image, img_size):
     x_img, y_img = original_image.size
@@ -548,41 +377,6 @@ def compare_dir_csv(self, csv_path):
     print(self.csv_file_df.exists.value_counts())
     # Delete all entries that are not downloaded from CSV file
     self.csv_file_df = self.csv_file_df[self.csv_file_df.exists]
-
-def create_roc_curve(self):
-    #TP,TN,FP,FN
-    # TP Ecklonia identified Ecklonia
-    # TN Others identified Others
-    # FP Others identified Ecklonia
-    # FN Ecklonia identified Others
-    TP = 0
-    TN = 0
-    FP = 0
-    FN = 0
-    thresh_roc = [[],[],[],[]]
-    tpr =[]
-    fpr = []
-    for id, threshold in enumerate(range(0,100,5)):
-        threshold = float(threshold/100)
-        for TP_value in self.roc_curve[0]:
-            if TP_value > threshold: thresh_roc[0].append(TP_value)
-            else: thresh_roc[3].append(TP_value)
-        for FP_value in self.roc_curve[2]:
-            if FP_value > threshold: thresh_roc[2].append(FP_value)
-            else: thresh_roc[1].append(FP_value)
-        for TN_value in self.roc_curve[1]:
-            if TN_value > (1-threshold): thresh_roc[1].append(TN_value)
-            else: thresh_roc[2].append(TN_value)
-        for FN_value in self.roc_curve[3]:
-            if FN_value > (1-threshold):thresh_roc[3].append(FN_value)
-            else: thresh_roc[0].append(FN_value)
-        tpr = len(thresh_roc[0])/(len(thresh_roc[0])+len(thresh_roc[3]))
-        fpr = len(thresh_roc[2])/(len(thresh_roc[2])+len(thresh_roc[1]))
-        log_to_graph(self, tpr*100, 'test_roc', 'path_label', fpr*100)
-        print(tpr*100, fpr*100)
-        #self.logger.experiment.add_scalars('test_roc_exp', {'test': fpr*100},'path_label')
-        #self.logger.experiment.add_scalars(var, {name: value},fpr*100)
-        #self.logger.experiment.add_scalars('test_roc', {name: metric_list[i]},path_label)
 
 def set_parameter_requires_grad(model, feature_extracting):
     if feature_extracting:
@@ -691,7 +485,7 @@ def get_args():
     #/pvol/Final_Eck_1_to_10_Database/Original_images/164161_1_to_1_neighbour_Ecklonia_radiata_except.csv
     #/pvol/Final_Eck_1_to_1_neighbour_Database/Original_images/164161_1_to_1_neighbour_Ecklonia_radiata_except.csv
 
-    parser.add_argument('--n_trials', metavar='n_trials', type=int, help='Number of trials that Optuna runs for', default=2) #!
+    parser.add_argument('--n_trials', metavar='n_trials', type=int, help='Number of trials that Optuna runs for', default=1) #!
 
     parser.add_argument('--backbone', metavar='backbone', type=str, help='Name of the model which should be used for transfer learning', default='inception_v3')
 
@@ -711,9 +505,11 @@ def get_args():
 
     parser.add_argument('--cross_validation', metavar='cross_validation', type=int, help= 'Defines how many sets the dataset is going to be divided in for cross validation.', default=0) #!
     
+    parser.add_argument('--col_name', metavar='col_name', type=str, help='Name of the column that should be used for filtering e.g. "label_name", "translated_label_name", "lineage_name"', default='label_name') 
+    
     args =parser.parse_args()
     no_filters = 0
-    return args.percent_valid_examples,args.percent_test_examples, args.eck_test_perc,args.limit_train_batches,args.limit_val_batches,args.limit_test_batches,args.epochs,args.log_path,args.log_name,args.img_path, args.n_trials,args.backbone, no_filters, args.real_test, args.test_img_path, args.img_size, args.csv_path, args.crop_perc, args.batch_size, args.label_name, args.cross_validation
+    return args.percent_valid_examples,args.percent_test_examples, args.eck_test_perc,args.limit_train_batches,args.limit_val_batches,args.limit_test_batches,args.epochs,args.log_path,args.log_name,args.img_path, args.n_trials,args.backbone, no_filters, args.real_test, args.test_img_path, args.img_size, args.csv_path, args.crop_perc, args.batch_size, args.label_name, args.cross_validation, args.col_name
 
 def log_to_graph(self, value, var, name ,global_step):
     self.logger.experiment.add_scalars(var, {name: value},global_step)
@@ -787,30 +583,18 @@ def get_test_dataset(img_size, PERCENT_TEST_EXAMPLES, ECK_TEST_PERC):
 
 def display_dataloader(data_loader, name):
     counter = [0,0]
-    
-    #Used for General Dataset 
-    '''
-    #print(data_loader.dataset.data[:][1])
-    for entry in data_loader.dataset.data:
-        label = entry[1]
-        if label == one_word_label: 
-            counter[1] +=1
-        else:
-            counter[0] +=1
-    print('The {} comprises of: {} {} & Others {} \n'.format(name, label_name, counter[1], counter[0]))
-    '''
     #Used for CSV Dataset
     
     for idx in data_loader.dataset.indices:
         if label_name == 'Ecklonia radiata':
-            if data_loader.dataset.dataset.csv_file_df.label_name.iloc[idx] == label_name:
+            if data_loader.dataset.dataset.csv_file_df[col_name].iloc[idx] == label_name:
                 #print('Eck Label ' + data_loader.dataset.dataset.csv_file_df.label_name[idx])
                 counter[1] += 1 
             else: 
                 #print('Others label '+ (data_loader.dataset.dataset.csv_file_df.label_name[idx]))
                 counter[0] += 1
         else: #Used for translated label name
-            if data_loader.dataset.dataset.csv_file_df.label_translated_name.iloc[idx] == label_name:
+            if data_loader.dataset.dataset.csv_file_df[col_name].iloc[idx] == label_name:
                 #print('Eck Label ' + data_loader.dataset.dataset.csv_file_df.label_name[idx])
                 counter[1] += 1 
             else: 
@@ -818,21 +602,6 @@ def display_dataloader(data_loader, name):
                 counter[0] += 1
     print('The {} comprises of: {} {} & Others {} \n'.format(name, label_name, counter[1], counter[0]))
     
-    
-    '''
-    counter = [[0,0],[0,0]] # First [] is Others, then sub [] is unpadded, padded
-    pad_idx = 0
-    for i in range(len(test_loader.dataset.data)):
-        if 'Padding' in test_loader.dataset.data[i][0]: 
-            pad_idx = 1
-        else: pad_idx = 0
-        if test_loader.dataset.data[i][1] == 'Others':
-            class_id = 0
-        else: class_id = 1
-        counter[class_id][pad_idx] += 1
-    print('The Test-Dataset comprises of: \nUniform Ecklonia {}\nUniform Others {} \nPadded Ecklonia {}\nPadded Others {}'.format(counter[1][0], counter[0][0], counter[1][1], counter[0][1]))
-    #print(test_loader.dataset.data[1][1])
-'''
 
 def objective(trial: optuna.trial.Trial) -> float:
 
@@ -840,45 +609,15 @@ def objective(trial: optuna.trial.Trial) -> float:
     # Optuna Params
     ###############
     global RandomEqualize, RandomRotation, RandomErasing, RandomPerspective, RandomAffine, RandomVerticalFlip, RandomHorizontalFlip, RandomInvert, ColorJitter, ElasticTransform, RandomAutocontrast, RandomGrayscale
-    '''
-    RandomEqualize = trial.suggest_categorical("RandomEqualize", [True,False])
-    RandomRotation = trial.suggest_categorical("RandomRotation", [True,False])
-    RandomErasing = trial.suggest_categorical("RandomErasing", [True,False])
-    RandomPerspective = trial.suggest_categorical("RandomPerspective", [True,False])
-    RandomAffine = trial.suggest_categorical("RandomAffine", [True,False])
-    RandomVerticalFlip = trial.suggest_categorical("RandomVerticalFlip", [True,False])
-    RandomHorizontalFlip = trial.suggest_categorical("RandomHorizontalFlip", [True,False])
-    RandomInvert = trial.suggest_categorical("RandomInvert", [True,False])
-    ColorJitter = trial.suggest_categorical("ColorJitter", [True,False])
-    ElasticTransform = trial.suggest_categorical("ElasticTransform", [True,False])
-    RandomAutocontrast = trial.suggest_categorical("RandomAutocontrast", [True,False])
-    RandomGrayscale = trial.suggest_categorical("RandomGrayscale", [True,False])
-    '''
+
     RandomEqualize, RandomRotation, RandomVerticalFlip, RandomHorizontalFlip  = True, True, True, True
     
     RandomInvert, RandomAutocontrast, RandomErasing, RandomPerspective, RandomAffine, ColorJitter, ElasticTransform, RandomGrayscale = False, False, False, False, False, False, False, False
     
-    #dropout = trial.suggest_float("dropout", 0.2, 0.5)
-    #trial.suggest_int("batchsize", 8, 128)
-    
-    #LEARNING_RATE = trial.suggest_float(
-    #    "learning_rate_init", 1e-6, 1e-4, log=True
-    #) #min needs to be 1e-6
     LEARNING_RATE = 1e-5
-    #global optimizer_name
-    #optimizer_name = trial.suggest_categorical("optimizer", ['Adam', 'Adamax', 'RMSprop', 'SGD', 'AdamW'])
-    
-    # Original was ("optimizer", ['Adam', 'Adagrad', 'Adadelta', 'Adamax', 'AdamW', 'ASGD', 'NAdam', 'RAdam', 'RMSprop', 'Rprop', 'SGD'])
-    
-    
-    #optimizer_name = 'Adam'
 
     global threshold
-    #threshold = trial.suggest_float("threshold", 0.5, 1)
     threshold = 0.5
-    
-    #global img_size
-    #img_size = trial.suggest_int("img_size", 16, 2048, step=16)
 
     ##############
     # Data Loading
@@ -903,16 +642,8 @@ def objective(trial: optuna.trial.Trial) -> float:
         cross_sets = []*cross_validation
         cross_sets = torch.utils.data.random_split(train_val_set,[0.2,0.2,0.2,0.2,0.2], generator=torch.Generator().manual_seed(4234))
         validation_set = cross_sets[cross_counter]
-        #cross_sets = cross_sets.pop(cross_counter)
 
         training_set = torch.utils.data.ConcatDataset([cross_sets[train_index[0]],cross_sets[train_index[1]], cross_sets[train_index[2]], cross_sets[train_index[3]] ])
-
-    
-
-    # Create data loaders for our datasets; shuffle for training and for validation
-    #train_loader = torch.utils.data.DataLoader(training_set, BATCHSIZE, shuffle=True, num_workers=os.cpu_count())
-    
-    #val_loader = torch.utils.data.DataLoader(validation_set, BATCHSIZE, shuffle=False, num_workers=os.cpu_count())
 
     acc_val = 'cpu'
     if torch.cuda.is_available(): acc_val = 'gpu'
@@ -947,9 +678,6 @@ def objective(trial: optuna.trial.Trial) -> float:
                             trainer= trainer,  
                             #pl_module = LightningModule, 
                             img_size=img_size)
-    #dropout=dropout,
-    #trainer.tune(model, train_loader,val_loader )
-    #trainer.fit(model, train_loader,val_loader )
     trainer.tune(model)
     trainer.fit(model)
     
@@ -995,63 +723,46 @@ def objective(trial: optuna.trial.Trial) -> float:
     # value copied here so that it is not influenced by different testing options
     f1_score_end = trainer.callback_metrics["f1_score"].item()
 
-    if real_test:
-        #Used for CSV Dataset
-        path_list = [
-            '/pvol/Ecklonia_Testbase/WA/Original_images/annotations-u45-leo_kelp_SWC_WA_AI_test-leo_kelp_AI_SWC_WA_test_25pts-8148-7652a9b48f0e3186fe5d-dataframe.csv', 
-            '/pvol/Ecklonia_Testbase/NSW_Broughton/Original_images/annotations-u45-leo_kelp_AI_test_broughton_is_NSW-leo_kelp_AI_test_broughton_is_25pts-8152-7652a9b48f0e3186fe5d-dataframe.csv', 
-            '/pvol/Ecklonia_Testbase/VIC_Prom/Original_images/annotations-u45-leo_kelp_AI_test_prom_VIC-leo_kelp_AI_test_prom_25pts-8150-7652a9b48f0e3186fe5d-dataframe.csv',
-            '/pvol/Ecklonia_Testbase/VIC_Discoverybay/Original_images/annotations-u45-leo_kelp_AI_test_discoverybay_VIC_phylospora-leo_kelp_AI_test_db_phylospora_25pts-8149-7652a9b48f0e3186fe5d-dataframe.csv', 
-            '/pvol/Ecklonia_Testbase/TAS_Lanterns/Original_images/annotations-u45-leo_kelp_AI_test_lanterns_TAS-leo_kelp_AI_test_lanterns_25pts-8151-7652a9b48f0e3186fe5d-dataframe.csv', 
-            '/pvol/Ecklonia_Testbase/Gulf_St_Vincent/Original_images/Ecklonia_RLS_Gulf St Vincent_2012.csv',
-            '/pvol/Ecklonia_Testbase/Jervis_Bay/Original_images/Ecklonia_RLS_Jervis Bay Marine Park_2015.csv',
-            '/pvol/Ecklonia_Testbase/Port_Phillip_Heads/Original_images/Ecklonia_RLS_Port Phillip Heads_2010.csv'
-            ]
-        
-        # Used for Hardcoral
-        path_list = [
-            '/pvol/NMSC_Testbase/Hardcoral_Queensland/Original_images/Hardcoral_RLS_Queensland (other)_2015.csv',
-            '/pvol/NMSC_Testbase/Hardcoral_Norfolk/Original_images/Hardcoral_RLS_Norfolk Island_2013.csv',
-            '/pvol/NMSC_Testbase/Hardcoral_Ningaloo/Original_images/Hardcoral_RLS_Ningaloo Marine Park_2016.csv'
+    #Used for CSV Dataset
+    path_list = [
+        '/pvol/Ecklonia_Testbase/WA/Original_images/annotations-u45-leo_kelp_SWC_WA_AI_test-leo_kelp_AI_SWC_WA_test_25pts-8148-7652a9b48f0e3186fe5d-dataframe.csv', 
+        '/pvol/Ecklonia_Testbase/NSW_Broughton/Original_images/annotations-u45-leo_kelp_AI_test_broughton_is_NSW-leo_kelp_AI_test_broughton_is_25pts-8152-7652a9b48f0e3186fe5d-dataframe.csv', 
+        '/pvol/Ecklonia_Testbase/VIC_Prom/Original_images/annotations-u45-leo_kelp_AI_test_prom_VIC-leo_kelp_AI_test_prom_25pts-8150-7652a9b48f0e3186fe5d-dataframe.csv',
+        '/pvol/Ecklonia_Testbase/VIC_Discoverybay/Original_images/annotations-u45-leo_kelp_AI_test_discoverybay_VIC_phylospora-leo_kelp_AI_test_db_phylospora_25pts-8149-7652a9b48f0e3186fe5d-dataframe.csv', 
+        '/pvol/Ecklonia_Testbase/TAS_Lanterns/Original_images/annotations-u45-leo_kelp_AI_test_lanterns_TAS-leo_kelp_AI_test_lanterns_25pts-8151-7652a9b48f0e3186fe5d-dataframe.csv', 
+        '/pvol/Ecklonia_Testbase/Gulf_St_Vincent/Original_images/Ecklonia_RLS_Gulf St Vincent_2012.csv',
+        '/pvol/Ecklonia_Testbase/Jervis_Bay/Original_images/Ecklonia_RLS_Jervis Bay Marine Park_2015.csv',
+        '/pvol/Ecklonia_Testbase/Port_Phillip_Heads/Original_images/Ecklonia_RLS_Port Phillip Heads_2010.csv'
         ]
+    
+    # Used for Hardcoral
+    path_list = [
+        '/pvol/NMSC_Testbase/Hardcoral_Queensland/Original_images/Hardcoral_RLS_Queensland (other)_2015.csv',
+        '/pvol/NMSC_Testbase/Hardcoral_Norfolk/Original_images/Hardcoral_RLS_Norfolk Island_2013.csv',
+        '/pvol/NMSC_Testbase/Hardcoral_Ningaloo/Original_images/Hardcoral_RLS_Ningaloo Marine Park_2016.csv'
+    ]
 
-        # Used for Macroalgal
-        path_list = [
-            '/pvol/NMSC_Testbase/Macroalgal_Port_Phillip/Original_images/Macroalgal_RLS_Port Phillip Bay_2017.csv',
-            '/pvol/NMSC_Testbase/Macroalgal_Gulf/Original_images/Macroalgal_RLS_Gulf St Vincent_2012.csv',
-            '/pvol/NMSC_Testbase/Macroalgal_Jervis/Original_images/Macroalgal_RLS_Jervis Bay Marine Park_2015.csv'
-        ]
+    # Used for Macroalgal
+    path_list = [
+        '/pvol/NMSC_Testbase/Macroalgal_Port_Phillip/Original_images/Macroalgal_RLS_Port Phillip Bay_2017.csv',
+        '/pvol/NMSC_Testbase/Macroalgal_Gulf/Original_images/Macroalgal_RLS_Gulf St Vincent_2012.csv',
+        '/pvol/NMSC_Testbase/Macroalgal_Jervis/Original_images/Macroalgal_RLS_Jervis Bay Marine Park_2015.csv'
+    ]
 
-        # Used for Seagrass
-        path_list = [
-            '/pvol/NMSC_Testbase/Seagrass_Port_Phillip_2010/Original_images/Seagrass_RLS_Port Phillip Heads_2010.csv',
-            '/pvol/NMSC_Testbase/Seagrass_Port_Phillip_2016/Original_images/Seagrass_RLS_Port Phillip Bay_2016.csv',
-            '/pvol/NMSC_Testbase/Seagrass_Port_Phillip_2017/Original_images/Seagrass_RLS_Port Phillip Bay_2017.csv'
-        ]
-        '''
-        #Used for Generaldataset
-        path_list = [
-            '/pvol/Ecklonia_Testbase/WA/', 
-            '/pvol/Ecklonia_Testbase/NSW_Broughton/', 
-            '/pvol/Ecklonia_Testbase/VIC_Prom/',
-            '/pvol/Ecklonia_Testbase/VIC_Discoverybay/', 
-            '/pvol/Ecklonia_Testbase/TAS_Lanterns/']
-        '''
-        for idx ,path in enumerate(path_list):
-            global path_label 
-            #path_label = re.sub(".*/(.*)/", "\\1", path)
-            path_label = idx
-            test_set = CSV_Dataset(img_size, test_list, test = True, inception=inception, csv_data_path= path)
-            #test_set = GeneralDataset(img_size, test_list, test=True, inception=inception, test_img_path=path)
-            # Just looks at one dataset
-            test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=30)#os.cpu_count())
-            #display_dataloader(test_loader, 'Test Loader'+str(path_label))
+    # Used for Seagrass
+    path_list = [
+        '/pvol/NMSC_Testbase/Seagrass_Port_Phillip_2010/Original_images/Seagrass_RLS_Port Phillip Heads_2010.csv',
+        '/pvol/NMSC_Testbase/Seagrass_Port_Phillip_2016/Original_images/Seagrass_RLS_Port Phillip Bay_2016.csv',
+        '/pvol/NMSC_Testbase/Seagrass_Port_Phillip_2017/Original_images/Seagrass_RLS_Port Phillip Bay_2017.csv'
+    ]
 
-            trainer.test(ckpt_path='best', dataloaders=test_loader)
-    else: 
-        test_set = GeneralDataset(img_size, test_list, test = True, inception=inception,test_img_path = test_img_path)
-        test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=True, num_workers=30)#os.cpu_count())
-        #display_dataloader(test_loader, 'Test Loader Generaldataset')
+    for idx ,path in enumerate(path_list):
+        global path_label 
+        path_label = idx
+        test_set = CSV_Dataset(img_size, test_list, test = True, inception=inception, csv_data_path= path)
+        # Just looks at one dataset
+        test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=30)#os.cpu_count())
+
         trainer.test(ckpt_path='best', dataloaders=test_loader)
     
     print('Number of samples overall: {}'.format(len(train_val_set) + len(test_set)))
@@ -1059,44 +770,17 @@ def objective(trial: optuna.trial.Trial) -> float:
     return f1_score_end
 
 if __name__ == '__main__':
-    PERCENT_VALID_EXAMPLES, PERCENT_TEST_EXAMPLES, ECK_TEST_PERC, LIMIT_TRAIN_BATCHES, LIMIT_VAL_BATCHES, LIMIT_TEST_BATCHES, EPOCHS, LOGGER_PATH, LOG_NAME, IMG_PATH, N_TRIALS, backbone_name, no_filters, real_test, test_img_path, img_size, csv_path, crop_perc, batch_size, label_name, cross_validation = get_args()
+    PERCENT_VALID_EXAMPLES, PERCENT_TEST_EXAMPLES, ECK_TEST_PERC, LIMIT_TRAIN_BATCHES, LIMIT_VAL_BATCHES, LIMIT_TEST_BATCHES, EPOCHS, LOGGER_PATH, LOG_NAME, IMG_PATH, N_TRIALS, backbone_name, no_filters, real_test, test_img_path, img_size, csv_path, crop_perc, batch_size, label_name, cross_validation, col_name = get_args()
 
-    one_word_label = 'One_Word_Label_Not_Defined'
-    if label_name == 'Ecklonia radiata':
-        one_word_label = 'Ecklonia'
-    elif label_name == 'Seagrass cover':
-        one_word_label = 'Seagrass'
-    elif label_name == 'Hard coral cover':
-        one_word_label = 'Hardcoral'
-    elif label_name == 'Macroalgal canopy cover':
-        one_word_label = 'Macroalgal'
-
-    model_specs = [
-        #['inception_v3',0],
-        #['swin_v2_b', 1024],
-        #['resnet152', 0],
-        #['resnet50', 0],
-        #['googlenet', 0], 
-        #['convnext_large', 1536], 
-        ['convnext_small', 768], 
-        ['resnext101_64x4d', 0], 
-        ['efficientnet_v2_l', 1280], 
-        ['regnet_x_32gf', 0],
-        ] 
-    
-    model_specs = [['inception_v3', 0]]
+    one_word_label = label_name.split()[0] #only use first word
 
     test_log_count = 0 # Needed to display all five datasets
-
-    
-
     cross_counter = 0
     # Used for fixed bounding_box
     backbone_name, no_filters ='inception_v3', 0
-    #for optimizer_name in ['AdamW']:
     optimizer_name = 'AdamW'
     l2_param = 0.01
-    #for l2_param in [0.1, 0.01, 0.001]:
+
     #for backbone_name, no_filters in model_specs:
     for cross_counter in range(cross_validation):
         
