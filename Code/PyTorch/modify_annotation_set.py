@@ -39,7 +39,11 @@ class modify_annotation_set():
 
     def delete_entries(self, csv_file_df, label, value):
         shape_before = csv_file_df.shape[0]
-        csv_file_df = csv_file_df.loc[csv_file_df[label] != value]
+        if value == "NaN":
+            csv_file_df = csv_file_df.dropna(subset=[label])
+        else:
+            csv_file_df = csv_file_df.loc[csv_file_df[label] != value]
+
         print('Deleted {} rows; {} .'.format(shape_before-csv_file_df.shape[0], value))
         return csv_file_df
     
@@ -50,8 +54,10 @@ class modify_annotation_set():
             red_list_df = pd.read_csv("/home/ubuntu/Documents/IMAS/Code/PyTorch/Annotation_Sets/red_list.csv", dtype=str, usecols=[self.col_name])
             for value in red_list_df[self.col_name]:
                 csv_file_df = self.delete_entries(csv_file_df, self.col_name, value)
-
         csv_file_df = self.delete_entries(csv_file_df, 'tag_names', 'Flagged For Review')
+        if 'translated' in self.col_name:
+            csv_file_df = self.delete_entries(csv_file_df, 'label_translated_name', 'NaN')
+
         #print('Not being saved to reduce space.')
         # Update the index after deleting entries 
         csv_file_df.reset_index(drop=True, inplace=True)

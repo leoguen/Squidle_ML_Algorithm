@@ -25,6 +25,7 @@ import pandas as pd
 from os.path import isfile, join
 from os import listdir
 import matplotlib.pyplot as plt
+import math
 
 writer = SummaryWriter()
 
@@ -45,8 +46,10 @@ class CSV_Dataset(Dataset):
     def __getitem__(self, idx):
         img_path = str(re.sub(r'(.*)/.*', '\\1', self.csv_data_path)) + '/All_Images/' +self.csv_file_df.file_name.iloc[idx]
         class_id = torch.tensor(0)
-        if label_name == 'Ecklonia radiata':
-            if self.csv_file_df[col_name].iloc[idx] == label_name: 
+        # make everything a string in the col
+        self.csv_file_df[col_name] = self.csv_file_df[col_name].astype(str)
+        if 'lineage' in col_name:
+            if label_name in self.csv_file_df[col_name].iloc[idx]: 
                 class_id = torch.tensor(1)
         else: #If translated labels are used
             if self.csv_file_df[col_name].iloc[idx] == label_name: 
@@ -340,6 +343,10 @@ def save_test_csv(self):
     
 
 def get_crop_points(self, x, y, original_image, img_size):
+    if math.isnan(x): 
+        print("Value is NaN") 
+    else: 
+        print("Value is not NaN")
     x_img, y_img = original_image.size
     crop_dist = img_size/2 
     if x - crop_dist < 0: x0 = 0
@@ -374,6 +381,7 @@ def compare_dir_csv(self, csv_path):
     dir_list_df = pd.Series(onlyfiles)
     # Check which files are actually in the dir
     self.csv_file_df["exists"] = self.csv_file_df.file_name.isin(dir_list_df)
+    print("Amount of existing images in Folder (True) and Missing (False):")
     print(self.csv_file_df.exists.value_counts())
     # Delete all entries that are not downloaded from CSV file
     self.csv_file_df = self.csv_file_df[self.csv_file_df.exists]
@@ -479,7 +487,8 @@ def get_args():
 
     parser.add_argument('--img_path', metavar='img_path', type=str, help='Path to the database of images', default='/pvol/Final_Eck_1_to_10_Database/Original_images') #/pvol/Seagrass_Database/
 
-    parser.add_argument('--csv_path', metavar='csv_path', type=str, help='Path to the csv file describing the images', default='/pvol/Final_Eck_1_to_10_Database/Original_images/22754_neighbour_Seagrass_cover_NMSC_list.csv')
+    parser.add_argument('--csv_path', metavar='csv_path', type=str, help='Path to the csv file describing the images', default='/pvol/Final_Eck_1_to_10_Database/Original_images/1231165_neighbour_Sand _ mud (_2mm)_list.csv')
+    #/pvol/Final_Eck_1_to_10_Database/Original_images/22754_neighbour_Seagrass_cover_NMSC_list.csv
     #/pvol/Final_Eck_1_to_10_Database/Original_images/205282_neighbour_Hard_coral_cover_NMSC_list.csv
     #/pvol/Final_Eck_1_to_10_Database/Original_images/405405_neighbour_Macroalgal_canopy_cover_NMSC_list.csv
     #/pvol/Final_Eck_1_to_10_Database/Original_images/164161_1_to_1_neighbour_Ecklonia_radiata_except.csv
@@ -500,12 +509,12 @@ def get_args():
 
     parser.add_argument('--batch_size', metavar='batch_size', type=int, help= 'Defines batch_size that is used to train algorithm.', default=32) #!
 
-    parser.add_argument('--label_name', metavar='label_name', type=str, help='Name of the label used in the csv file', default='Seagrass cover') #Seagrass cover
+    parser.add_argument('--label_name', metavar='label_name', type=str, help='Name of the label used in the csv file', default='Physical > Substrate > Unconsolidated (soft) > Sand / mud (<2mm)') #Seagrass cover
     #Macroalgal canopy cover
 
     parser.add_argument('--cross_validation', metavar='cross_validation', type=int, help= 'Defines how many sets the dataset is going to be divided in for cross validation.', default=0) #!
     
-    parser.add_argument('--col_name', metavar='col_name', type=str, help='Name of the column that should be used for filtering e.g. "label_name", "translated_label_name", "lineage_name"', default='label_name') 
+    parser.add_argument('--col_name', metavar='col_name', type=str, help='Name of the column that should be used for filtering e.g. "label_name", "translated_label_name", "lineage_name"', default='label_translated_lineage_names') 
     
     args =parser.parse_args()
     no_filters = 0
@@ -586,14 +595,14 @@ def display_dataloader(data_loader, name):
     #Used for CSV Dataset
     
     for idx in data_loader.dataset.indices:
-        if label_name == 'Ecklonia radiata':
-            if data_loader.dataset.dataset.csv_file_df[col_name].iloc[idx] == label_name:
+        if 'lineage' in col_name: # in case different depths of lineage are required
+            if label_name in data_loader.dataset.dataset.csv_file_df[col_name].iloc[idx]:
                 #print('Eck Label ' + data_loader.dataset.dataset.csv_file_df.label_name[idx])
                 counter[1] += 1 
             else: 
                 #print('Others label '+ (data_loader.dataset.dataset.csv_file_df.label_name[idx]))
                 counter[0] += 1
-        else: #Used for translated label name
+        else: #Used if not lineage
             if data_loader.dataset.dataset.csv_file_df[col_name].iloc[idx] == label_name:
                 #print('Eck Label ' + data_loader.dataset.dataset.csv_file_df.label_name[idx])
                 counter[1] += 1 
@@ -782,7 +791,8 @@ if __name__ == '__main__':
     l2_param = 0.01
 
     #for backbone_name, no_filters in model_specs:
-    for cross_counter in range(cross_validation):
+    #for cross_counter in range(cross_validation):
+        
         
         # Used for precent test
     #for size in range(12,28,2): #!
@@ -790,18 +800,18 @@ if __name__ == '__main__':
         
         #if size == 0: size =1
 
-        study = optuna.create_study(direction="maximize", pruner=optuna.pruners.MedianPruner())
-        study.optimize(objective, n_trials=N_TRIALS, timeout=None)
+    study = optuna.create_study(direction="maximize", pruner=optuna.pruners.MedianPruner())
+    study.optimize(objective, n_trials=N_TRIALS, timeout=None)
 
-        print("Number of finished trials: {}".format(len(study.trials)))
-        print("Best trial:")
-        trial = study.best_trial
+    print("Number of finished trials: {}".format(len(study.trials)))
+    print("Best trial:")
+    trial = study.best_trial
 
-        print("  Value: {}".format(trial.value))
+    print("  Value: {}".format(trial.value))
 
-        print("  Params: ")
-        for key, value in trial.params.items():
-            print("    {}: {}".format(key, value))
+    print("  Params: ")
+    for key, value in trial.params.items():
+        print("    {}: {}".format(key, value))
 
         #importance_dict = optuna.importance.get_param_importances(study)
         #print(importance_dict)
