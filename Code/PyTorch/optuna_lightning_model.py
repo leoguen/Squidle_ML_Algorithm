@@ -25,16 +25,15 @@ import pandas as pd
 from os.path import isfile, join
 from os import listdir
 import matplotlib.pyplot as plt
-import math
 
 writer = SummaryWriter()
 
 class CSV_Dataset(Dataset):
-    def __init__(self, img_size, test_list, test, inception, csv_data_path):
+    def __init__(self, img_size, test_list, test, inception, csv_data_path, csv_file_df):
         self.test_indicator = test
         self.csv_data_path = csv_data_path
         self.inception = inception
-        self.csv_file_df = pd.read_csv(csv_data_path)
+        self.csv_file_df =csv_file_df
         self.class_map = {one_word_label : 1, "Others": 0}
         compare_dir_csv(self, csv_data_path)
         # Add unpadded and padded entries to data
@@ -71,59 +70,51 @@ class CSV_Dataset(Dataset):
         x0, x1, y0, y1 = get_crop_points(self, x, y, img, loc_img_size)
         cropped_img = img.crop((x0, y0, x1, y1))
         x_crop_size, y_crop_size = cropped_img.size
-        if self.inception:
-            if self.test_indicator: 
-                train_transforms = transforms.Compose([
-                transforms.CenterCrop([int(y_crop_size*0.9), int(x_crop_size*0.9)]),
-                transforms.Resize((299, 299)),
-                transforms.ToTensor(), # ToTensor : [0, 255] -> [0, 1]
-                transforms.Normalize(
-                    mean=[0.485, 0.456, 0.406],
-                    std=[0.229, 0.224, 0.225]),
-                ])
-            else:
 
-                train_transforms = transforms.Compose([])
-                
-                if RandomEqualize:
-                    train_transforms.transforms.append(transforms.RandomEqualize(p=0.1))
-                
-                train_transforms.transforms.append(transforms.ToTensor())# ToTensor : [0, 255] -> [0, 1]
-
-                if RandomRotation:
-                    train_transforms.transforms.append(transforms.RandomRotation(degrees=(-20, 20)))
-                if RandomErasing:
-                    train_transforms.transforms.append(transforms.RandomErasing(p=0.1))
-                if RandomPerspective:
-                    train_transforms.transforms.append(transforms.RandomPerspective(p=0.1, distortion_scale=0.3))
-                if RandomAffine:
-                    train_transforms.transforms.append(transforms.RandomAffine( degrees=(-20, 20), translate=(0.1, 0.15), scale=(0.9, 1.2)))
-                if RandomVerticalFlip:
-                    train_transforms.transforms.append(transforms.RandomVerticalFlip(p=0.1))
-                if RandomHorizontalFlip:
-                    train_transforms.transforms.append(transforms.RandomHorizontalFlip(p=0.1))
-                if RandomInvert:
-                    train_transforms.transforms.append(transforms.RandomInvert(p=0.1))
-                if ColorJitter:
-                    train_transforms.transforms.append(transforms.ColorJitter(brightness=0.2, hue=0.0, saturation=0.2, contrast=0.2))
-                if ElasticTransform:
-                    train_transforms.transforms.append(transforms.ElasticTransform(alpha=120.0))
-                if RandomAutocontrast:
-                    train_transforms.transforms.append(transforms.RandomAutocontrast(p=0.1))
-                if RandomGrayscale:
-                    train_transforms.transforms.append(transforms.RandomGrayscale(p=0.1))
-                    
-                train_transforms.transforms.append(transforms.CenterCrop([int(y_crop_size*0.9), int(x_crop_size*0.9)]))
-                train_transforms.transforms.append(transforms.Resize((299, 299)))
-                train_transforms.transforms.append(transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]))
-
-        else:
+        if self.test_indicator: 
             train_transforms = transforms.Compose([
+            transforms.CenterCrop([int(y_crop_size*0.9), int(x_crop_size*0.9)]),
             transforms.Resize((299, 299)),
             transforms.ToTensor(), # ToTensor : [0, 255] -> [0, 1]
-            transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                std=[0.229, 0.224, 0.225])
+            transforms.Normalize(
+                mean=[0.485, 0.456, 0.406],
+                std=[0.229, 0.224, 0.225]),
             ])
+        else:
+
+            train_transforms = transforms.Compose([])
+            
+            if RandomEqualize:
+                train_transforms.transforms.append(transforms.RandomEqualize(p=0.1))
+            
+            train_transforms.transforms.append(transforms.ToTensor())# ToTensor : [0, 255] -> [0, 1]
+
+            if RandomRotation:
+                train_transforms.transforms.append(transforms.RandomRotation(degrees=(-20, 20)))
+            if RandomErasing:
+                train_transforms.transforms.append(transforms.RandomErasing(p=0.1))
+            if RandomPerspective:
+                train_transforms.transforms.append(transforms.RandomPerspective(p=0.1, distortion_scale=0.3))
+            if RandomAffine:
+                train_transforms.transforms.append(transforms.RandomAffine( degrees=(-20, 20), translate=(0.1, 0.15), scale=(0.9, 1.2)))
+            if RandomVerticalFlip:
+                train_transforms.transforms.append(transforms.RandomVerticalFlip(p=0.1))
+            if RandomHorizontalFlip:
+                train_transforms.transforms.append(transforms.RandomHorizontalFlip(p=0.1))
+            if RandomInvert:
+                train_transforms.transforms.append(transforms.RandomInvert(p=0.1))
+            if ColorJitter:
+                train_transforms.transforms.append(transforms.ColorJitter(brightness=0.2, hue=0.0, saturation=0.2, contrast=0.2))
+            if ElasticTransform:
+                train_transforms.transforms.append(transforms.ElasticTransform(alpha=120.0))
+            if RandomAutocontrast:
+                train_transforms.transforms.append(transforms.RandomAutocontrast(p=0.1))
+            if RandomGrayscale:
+                train_transforms.transforms.append(transforms.RandomGrayscale(p=0.1))
+                
+            train_transforms.transforms.append(transforms.CenterCrop([int(y_crop_size*0.9), int(x_crop_size*0.9)]))
+            train_transforms.transforms.append(transforms.Resize((299, 299)))
+            train_transforms.transforms.append(transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]))
         img_tensor = train_transforms(cropped_img)
 
         return img_tensor, class_id
@@ -292,7 +283,7 @@ class KelpClassifier(pl.LightningModule):
         # Add probability histogramm to log
         if real_test: prob_name = name+'/'+str(path_label)
         else: prob_name = name
-                
+        
         for j, value in enumerate(test_pred_hist):
             step = 5 + j
             log_to_graph(self, value, 'test_probability', prob_name, step)
@@ -343,10 +334,7 @@ def save_test_csv(self):
     
 
 def get_crop_points(self, x, y, original_image, img_size):
-    if math.isnan(x): 
-        print("Value is NaN") 
-    else: 
-        print("Value is not NaN")
+
     x_img, y_img = original_image.size
     crop_dist = img_size/2 
     if x - crop_dist < 0: x0 = 0
@@ -479,7 +467,7 @@ def get_args():
 
     parser.add_argument('--limit_test_batches', metavar='lteb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.1) #!
 
-    parser.add_argument('--epochs', metavar='epochs', type=int, help='The number of epcohs the algorithm trains', default=1) #!
+    parser.add_argument('--epochs', metavar='epochs', type=int, help='The number of epochs the algorithm trains', default=1) #!
 
     parser.add_argument('--log_path', metavar='log_path', type=str, help='The path where the logger files are saved', default='/pvol/logs/')
 
@@ -487,7 +475,7 @@ def get_args():
 
     parser.add_argument('--img_path', metavar='img_path', type=str, help='Path to the database of images', default='/pvol/Final_Eck_1_to_10_Database/Original_images') #/pvol/Seagrass_Database/
 
-    parser.add_argument('--csv_path', metavar='csv_path', type=str, help='Path to the csv file describing the images', default='/pvol/Final_Eck_1_to_10_Database/Original_images/1231165_neighbour_Sand _ mud (_2mm)_list.csv')
+    parser.add_argument('--csv_path', metavar='csv_path', type=str, help='Path to the csv file describing the images', default='/pvol/Final_Eck_1_to_10_Database/Original_images/1210907_neighbour_Sand _ mud (_2mm)_list.csv')
     #/pvol/Final_Eck_1_to_10_Database/Original_images/22754_neighbour_Seagrass_cover_NMSC_list.csv
     #/pvol/Final_Eck_1_to_10_Database/Original_images/205282_neighbour_Hard_coral_cover_NMSC_list.csv
     #/pvol/Final_Eck_1_to_10_Database/Original_images/405405_neighbour_Macroalgal_canopy_cover_NMSC_list.csv
@@ -558,38 +546,6 @@ def image_to_tb(self, batch, batch_idx, step_name):
         #tensorboard.add_image(batch[0])
     return batch_idx
 
-def get_test_dataset(img_size, PERCENT_TEST_EXAMPLES, ECK_TEST_PERC):
-    unpad_path = IMG_PATH + str(img_size)+ '_images/'
-    pads_path = IMG_PATH + str(img_size)+ '_images/Padding/'
-    both_path = [unpad_path, pads_path]
-    unpad_file_list = [unpad_path + 'Others', unpad_path + 'Ecklonia']
-    pad_file_list =  [pads_path + 'Others', pads_path + 'Ecklonia']
-    both_file_list = [unpad_file_list, pad_file_list]
-    perc = [PERCENT_TEST_EXAMPLES * (1-ECK_TEST_PERC)*100, 1]
-    unpad_data = []
-    pad_data = []
-    both_data = [unpad_data, pad_data]
-    perc_id = 0
-    counter = [[0,0],[0,0]]
-    if int(PERCENT_TEST_EXAMPLES * ECK_TEST_PERC * 100) ==0: perc[1] = 1
-    else: perc[1] = int(PERCENT_TEST_EXAMPLES * ECK_TEST_PERC * 100)
-    for idx in range(2):
-        # First loop iterates over unpad files, second over padded files
-        for class_path in both_file_list[idx]:
-            class_name = class_path.split("/")[-1]
-            for img_path in glob.glob(class_path + "/*.jpg"):
-                #only add path to data if PERCENT_TEST_EXAMPLES allows
-                if class_name == 'Others': 
-                    perc_id = 0
-                    class_id = 0
-                else: 
-                    perc_id = 1
-                    class_id = 1
-                if random.randint(0,99) < perc[perc_id]:
-                    both_data[idx].append([img_path, class_name])
-                    counter[idx][class_id] += 1
-    return both_data
-
 def display_dataloader(data_loader, name):
     counter = [0,0]
     #Used for CSV Dataset
@@ -611,6 +567,45 @@ def display_dataloader(data_loader, name):
                 counter[0] += 1
     print('The {} comprises of: {} {} & Others {} \n'.format(name, label_name, counter[1], counter[0]))
     
+
+def get_test_sets(csv_file_df):
+    # Group by campaign and count total entries and entries matching the label
+    result = csv_file_df.groupby('point_media_deployment_campaign_key').agg(
+        total_entries=pd.NamedAgg(column=col_name, aggfunc='size'),
+        matching_entries=pd.NamedAgg(column=col_name, aggfunc=lambda x: (x == label_name).sum())
+    )
+    
+    # Calculate the ratio of matching_entries to total_entries
+    result['ratio'] = result['matching_entries'] / result['total_entries']
+    
+    # Filter datasets where the ratio is more than 20% and total_entries is more than 1000
+    filtered_result = result[(result['ratio'] > 0.2) & (result['total_entries'] >= 1000)]
+    
+    # Sort the filtered result DataFrame based on total_entries
+    sorted_result = filtered_result.sort_values(by='total_entries')
+    
+    # Get the campaign keys for the three smallest datasets (if they exist)
+    campaigns_to_extract = sorted_result.head(3).index.tolist()
+    
+    # Initialize empty DataFrames for the test sets
+    df1, df2, df3 = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+    
+    if len(campaigns_to_extract) > 0:
+        df1 = csv_file_df[csv_file_df['point_media_deployment_campaign_key'] == campaigns_to_extract[0]]
+        print(f"Length of first test dataset: {len(df1)}")
+    if len(campaigns_to_extract) > 1:
+        df2 = csv_file_df[csv_file_df['point_media_deployment_campaign_key'] == campaigns_to_extract[1]]
+        print(f"Length of second test dataset: {len(df2)}")
+    if len(campaigns_to_extract) > 2:
+        df3 = csv_file_df[csv_file_df['point_media_deployment_campaign_key'] == campaigns_to_extract[2]]
+        print(f"Length of third test dataset: {len(df3)}")
+    
+    # Remove these rows from the original DataFrame
+    csv_file_df = csv_file_df[~csv_file_df['point_media_deployment_campaign_key'].isin(campaigns_to_extract)]
+    
+    return df1, df2, df3, csv_file_df
+
+
 
 def objective(trial: optuna.trial.Trial) -> float:
 
@@ -635,16 +630,18 @@ def objective(trial: optuna.trial.Trial) -> float:
     if backbone_name == 'inception_v3': 
         inception = True
 
-    if real_test:
-        test_list = []
-    else: 
-        test_list = get_test_dataset(img_size, PERCENT_TEST_EXAMPLES, ECK_TEST_PERC)
+    test_list = []
+
+    csv_file_df= pd.read_csv(csv_path, on_bad_lines='skip', low_memory=False) 
+
+    test_df1, test_df2, test_df3, train_val_set = get_test_sets(csv_file_df)
 
     #train_val_set = GeneralDataset(img_size, test_list, test = False, inception = inception, test_img_path = csv_path)
-    train_val_set = CSV_Dataset(img_size, test_list, test = False, inception = inception, csv_data_path = csv_path)
+    train_val_set = CSV_Dataset(img_size, test_list, test = False, inception = inception, csv_data_path = csv_path, csv_file_df=train_val_set)
     
     global training_set, validation_set
     training_set, validation_set = torch.utils.data.random_split(train_val_set,[0.80, 0.20], generator=torch.Generator().manual_seed(4234))
+    
     if cross_validation != 0:
         train_index = [0,1,2,3,4]
         train_index.remove(cross_counter)
@@ -764,11 +761,11 @@ def objective(trial: optuna.trial.Trial) -> float:
         '/pvol/NMSC_Testbase/Seagrass_Port_Phillip_2016/Original_images/Seagrass_RLS_Port Phillip Bay_2016.csv',
         '/pvol/NMSC_Testbase/Seagrass_Port_Phillip_2017/Original_images/Seagrass_RLS_Port Phillip Bay_2017.csv'
     ]
-
-    for idx ,path in enumerate(path_list):
+    # Testset loading
+    for idx ,test_set in enumerate([test_df1, test_df2, test_df3]):
         global path_label 
         path_label = idx
-        test_set = CSV_Dataset(img_size, test_list, test = True, inception=inception, csv_data_path= path)
+        test_set = CSV_Dataset(img_size, test_list, test = True, inception=inception, csv_data_path=csv_path, csv_file_df=test_set)
         # Just looks at one dataset
         test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=30)#os.cpu_count())
 
@@ -797,23 +794,25 @@ if __name__ == '__main__':
         # Used for precent test
     #for size in range(12,28,2): #!
     #for size in [1,5,8,10,12,14,15,16,18,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95]:
+    for size in [10,12,14,15,16,18,20,25,30,35,40]:
         
-        #if size == 0: size =1
+        crop_perc = size/100
+            #if size == 0: size =1
 
-    study = optuna.create_study(direction="maximize", pruner=optuna.pruners.MedianPruner())
-    study.optimize(objective, n_trials=N_TRIALS, timeout=None)
+        study = optuna.create_study(direction="maximize", pruner=optuna.pruners.MedianPruner())
+        study.optimize(objective, n_trials=N_TRIALS, timeout=None)
 
-    print("Number of finished trials: {}".format(len(study.trials)))
-    print("Best trial:")
-    trial = study.best_trial
+        print("Number of finished trials: {}".format(len(study.trials)))
+        print("Best trial:")
+        trial = study.best_trial
 
-    print("  Value: {}".format(trial.value))
+        print("  Value: {}".format(trial.value))
 
-    print("  Params: ")
-    for key, value in trial.params.items():
-        print("    {}: {}".format(key, value))
+        print("  Params: ")
+        for key, value in trial.params.items():
+            print("    {}: {}".format(key, value))
 
-        #importance_dict = optuna.importance.get_param_importances(study)
-        #print(importance_dict)
-                
-            #cli_main()
+            #importance_dict = optuna.importance.get_param_importances(study)
+            #print(importance_dict)
+                    
+                #cli_main()

@@ -3,6 +3,7 @@ import os
 from os import path
 import pandas as pd
 import numpy as np
+import math
 
 class modify_annotation_set():
 
@@ -43,6 +44,10 @@ class modify_annotation_set():
             csv_file_df = csv_file_df.dropna(subset=[label])
         else:
             csv_file_df = csv_file_df.loc[csv_file_df[label] != value]
+        
+        if label == "point_x":
+            if value == "nan":
+                csv_file_df = csv_file_df.dropna(subset=[label])
 
         print('Deleted {} rows; {} .'.format(shape_before-csv_file_df.shape[0], value))
         return csv_file_df
@@ -57,6 +62,7 @@ class modify_annotation_set():
         csv_file_df = self.delete_entries(csv_file_df, 'tag_names', 'Flagged For Review')
         if 'translated' in self.col_name:
             csv_file_df = self.delete_entries(csv_file_df, 'label_translated_name', 'NaN')
+            csv_file_df = self.delete_entries(csv_file_df, 'point_x', 'nan')
 
         #print('Not being saved to reduce space.')
         # Update the index after deleting entries 
