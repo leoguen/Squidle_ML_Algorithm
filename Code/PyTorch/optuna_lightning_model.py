@@ -352,10 +352,14 @@ def get_crop_points(self, x, y, original_image, img_size):
     return  int(x0), int(x1), int(y0), int(y1)
 
 def compare_dir_csv(self, csv_path):
+    # Suppress Warning
+    pd.set_option('mode.chained_assignment', None)
+
     #csv_path = csv_path.replace(r'(.*)/.*', '\\1', regex=True).astype('str')
     img_path = str(re.sub(r'(.*)/.*', '\\1', csv_path)) + '/All_Images/' 
     # delete every kind of ending that corresponds to jpg in the web address
-    self.csv_file_df.columns = self.csv_file_df.columns.str.replace('[.]', '_')
+    self.csv_file_df.columns = self.csv_file_df.columns.str.replace('[.]', '_', regex=True)
+
     self.csv_file_df['file_name'] = self.csv_file_df.point_media_path_best.str.replace(r'(.*)\.(?i)jpg.?', '\\1', regex=True).astype('str')
     # delete everything before the last '/' in the web address
     self.csv_file_df.file_name = self.csv_file_df.file_name.str.replace(r'.*/(.*)', '\\1', regex=True).astype('str')
