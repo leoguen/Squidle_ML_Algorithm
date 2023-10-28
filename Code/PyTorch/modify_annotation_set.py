@@ -1,24 +1,22 @@
 import re
-import os
-from os import path
 import pandas as pd
 import numpy as np
-import math
+import argparse
 
 class modify_annotation_set():
 
     def __init__(self):
-        self.sibling = False
-        self.sibling_list_path = "/home/ubuntu/IMAS/Code/PyTorch/Annotation_Sets/sibling_list.csv"
-        self.red_list = False
-        self.neighbour = True
-        self.sib_factor = 0.3
-        #self.lineage = "Physical > Substrate > Unconsolidated (soft) > Sand / mud (<2mm)"
-        self.coi = 'Physical > Substrate > Unconsolidated (soft) > Sand / mud (<2mm)' #Class of Interest
-        self.defined_name = "" # The resulting csv will always be saved with the lineage name, this string will be added adter the lineage name
-        self.col_name = 'label_translated_lineage_names' #'label_name'  
-        self.norm_factor = 1
-        self.save_path = "/pvol/Annotationsets/Full_Annotationsets/"
+        args = self.get_args()
+        self.sibling = args.sibling
+        self.sibling_list_path = args.sibling_list_path
+        self.red_list = args.red_list
+        self.neighbour = args.neighbour
+        self.sib_factor = args.sib_factor
+        self.coi = args.coi
+        self.defined_name = args.defined_name
+        self.col_name = args.col_name
+        self.norm_factor = args.norm_factor
+        self.save_path = args.save_path
 
     def replace_lineage(self, csv_file_df):
         """
@@ -54,7 +52,6 @@ class modify_annotation_set():
     
     def delete_review(self, csv_file_df): 
         shape_before = csv_file_df.shape[0]
-        og_shape =shape_before
         if self.red_list:
             red_list_df = pd.read_csv("/home/ubuntu/Documents/IMAS/Code/PyTorch/Annotation_Sets/red_list.csv", dtype=str, usecols=[self.col_name])
             for value in red_list_df[self.col_name]:
@@ -128,7 +125,6 @@ class modify_annotation_set():
             
             # Add both lists
             norm_classes_df = norm_classes_df.append(only_sib_classes_df)
-
             norm_classes_df = (norm_classes_df.mul(classes_df[self.coi]*self.norm_factor)).astype(int)
 
         else:
@@ -181,14 +177,8 @@ class modify_annotation_set():
 
         if self.neighbour:
             #add addi_anno_coi to csv_file_df
-            print('')
-            print(len(csv_file_df))
-            print(len(csv_file_df[csv_file_df[self.col_name] == self.coi]))
-            print(len(addi_anno_coi))
             csv_file_df = csv_file_df.append(addi_anno_coi)
-            print(len(csv_file_df)) 
             csv_file_df = csv_file_df.drop_duplicates()
-            print(len(csv_file_df))
         print('Normalized Dataset size: {} with {} classes'.format(csv_file_df.pivot_table(index = [self.col_name], aggfunc ='size').sum(), len(csv_file_df.pivot_table(index = [self.col_name], aggfunc ='size'))))
         csv_file_df.reset_index(drop=True, inplace=True)
         #csv_name = self.coi + '_NMSC'
@@ -209,7 +199,7 @@ class modify_annotation_set():
         else: 
             path = self.save_path + str(len(csv_file_df.index))+'_'+ description +'_list.csv'
         
-        csv_file_df.to_csv(path,index=False)
+        #csv_file_df.to_csv(path,index=False)
         print('Saved {} entries with filename: {}'.format(len(csv_file_df.index), path))
 
     def clean_and_extract_filename(self, input_string):
@@ -224,6 +214,20 @@ class modify_annotation_set():
         
         return cleaned_filename
     
+    def get_args(self):
+        parser = argparse.ArgumentParser(description="Modify Annotation Set")
+        parser.add_argument('--sibling', action='store_true', help="Enable sibling processing (default: False)")
+        parser.add_argument('--sibling_list_path', default="/home/ubuntu/IMAS/Code/PyTorch/Annotation_Sets/sibling_list.csv", help="Path to the sibling list CSV file (default: '/home/ubuntu/IMAS/Code/PyTorch/Annotation_Sets/sibling_list.csv')")
+        parser.add_argument('--red_list', action='store_true', help="Enable red list processing (default: False)")
+        parser.add_argument('--neighbour', action='store_false', help="Disable neighbour processing (default: True)")
+        parser.add_argument('--sib_factor', type=float, default=0.3, help="Sibling factor (default: 0.3)")
+        parser.add_argument('--coi', default='Physical > Substrate > Unconsolidated (soft) > Sand / mud (<2mm)', help="Class of Interest (default: 'Physical > Substrate > Unconsolidated (soft) > Sand / mud (<2mm)')")
+        parser.add_argument('--defined_name', default="", help="Additional string for the filename (default: '')")
+        parser.add_argument('--col_name', default='label_translated_lineage_names', help="Column name (default: 'label_translated_lineage_names')")
+        parser.add_argument('--norm_factor', type=int, default=1, help="Normalization factor (default: 1)")
+        parser.add_argument('--save_path', default="/pvol/Annotationsets/Full_Annotationsets/", help="Save path (default: '/pvol/Annotationsets/Full_Annotationsets/')")
+        return parser.parse_args()
+
 if __name__ == "__main__":
     pd.set_option("display.max_rows", 10, "display.max_columns", 10)
     
@@ -240,7 +244,7 @@ if __name__ == "__main__":
     # Used for NMSC dataset
     #values = {"label_translated_name": 'Not of Interest'}
     #csv_file_df = csv_file_df.fillna(value=values)
-
+    
     data = modify_annotation_set()
 
     # Deletes entries that should not be used (e.g. "Flagged for Review") 
@@ -250,5 +254,3 @@ if __name__ == "__main__":
     csv_file_df = data.replace_lineage(csv_file_df)
 
     data.normalize_set(csv_file_df)
-    
-    
