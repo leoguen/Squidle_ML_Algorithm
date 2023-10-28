@@ -1,17 +1,20 @@
-import csv
 import os
-#from os import path
 import pandas as pd
 import urllib.request
 import cv2
 import numpy as np
 import re
+import argparse
 
 class crop_download_images():
 
+    def __init__(self, args):
+        self.save_path = args.save_path
+        self.csv_path = args.csv_path
+    
     def get_downloaded_files(self, dir_path, csv_path):
         # Load the CSV file into a pandas dataframe
-        df = pd.read_csv(csv_path)
+        df = pd.read_csv(csv_path, low_memory=False)
 
         dir_path = dir_path + '/Original_images/All_Images/'
         # Create a pandas dataframe from the .jpg files in save_path
@@ -35,7 +38,7 @@ class crop_download_images():
                 second_part = str(re.sub(".*/(.*).JPG", "\\1", df.point_media_path_best[index])) 
             else:
                 second_part =str(re.sub(".*/(.*)", "\\1", df.point_media_path_best[index]))
-            df.filename[index] = str(re.sub("\W", "_", df.point_media_deployment_campaign_key[index])) +"-"+ re.sub("\W", "_",second_part) + '.jpg'
+            df.loc[index, 'filename'] = str(re.sub("\W", "_", df.loc[index, 'point_media_deployment_campaign_key'])) + "-" + re.sub("\W", "_", second_part) + '.jpg'
         # Combine the campaign key and second part to create the filename
         #df['filename'] = df['point_media_deployment_campaign_key'].str.replace(r'\W', '_') + '-' + df['second_part'].str.replace(r'\W', '_') + '.jpg'
 
@@ -137,44 +140,16 @@ class crop_download_images():
         
 
         
+def get_args():
+    parser = argparse.ArgumentParser(description="Crop and Download Images")
+    parser.add_argument('--save_path', default='/pvol/Final_Eck_1_to_10_Database', help="Save path (default: '/pvol/Final_Eck_1_to_10_Database')")
+    parser.add_argument('--csv_path', default='/pvol/Final_Eck_1_to_10_Database/Original_images/1231165_neighbour_Sand _ mud (_2mm)_list.csv', help="CSV file path (default: '/pvol/Final_Eck_1_to_10_Database/Original_images/1231165_neighbour_Sand _ mud (_2mm)_list.csv')")
+    return parser.parse_args()
 
 if __name__ == "__main__":
-    coi = 'Hard coral cover' #'Seagrass cover' 
-    loi = 'Hard coral cover' #Seagrass cover' 
-    #Macroalgal canopy cover
-    #Hard coral cover
-    #Seagrass cover
-    
-    path_list = [
-        ['Seagrass cover','Final_Eck_1_to_10_Database' ,'/Annotation_Sets/Final_Sets/22754_neighbour_Seagrass_cover_NMSC_list.csv'], 
-        ['Hard coral cover','Final_Eck_1_to_10_Database' ,'/Annotation_Sets/Final_Sets/205282_neighbour_Hard_coral_cover_NMSC_list.csv'],
-        ['Macroalgal canopy cover','Final_Eck_1_to_10_Database' ,'/Annotation_Sets/Final_Sets/405405_neighbour_Macroalgal_canopy_cover_NMSC_list.csv']
-        ]
-    
-    """
-    path_list = [
-        #['Seagrass cover', 'NMSC_Testbase/Seagrass_Port_Phillip_2017', '/Annotation_Sets/Final_Sets/Seagrass_RLS_Port Phillip Bay_2017.csv'], 
-        #['Seagrass cover', 'NMSC_Testbase/Seagrass_Port_Phillip_2016', '/Annotation_Sets/Final_Sets/Seagrass_RLS_Port Phillip Bay_2016.csv'],
-        ['Seagrass cover', 'NMSC_Testbase/Seagrass_Port_Phillip_2010', '/Annotation_Sets/Final_Sets/Seagrass_RLS_Port Phillip Heads_2010.csv'],
-        ['Macroalgal cover', 'NMSC_Testbase/Macroalgal_Gulf', '/Annotation_Sets/Final_Sets/Macroalgal_RLS_Gulf St Vincent_2012.csv'],
-        ['Macroalgal cover', 'NMSC_Testbase/Marcoalgal_Jervis', '/Annotation_Sets/Final_Sets/Macroalgal_RLS_Jervis Bay Marine Park_2015.csv'],
-        ['Macroalgal cover', 'NMSC_Testbase/Macroalgal_Port_Phillip', '/Annotation_Sets/Final_Sets/Macroalgal_RLS_Port Phillip Bay_2017.csv'],
-        ['Hardcoral cover', 'NMSC_Testbase/Hardcoral_Queensland', '/Annotation_Sets/Final_Sets/Hardcoral_RLS_Queensland (other)_2015.csv'],
-        ['Hardcoral cover', 'NMSC_Testbase/Hardcoral_Norfolk', '/Annotation_Sets/Final_Sets/Hardcoral_RLS_Norfolk Island_2013.csv'],
-        ['Hardcoral cover', 'NMSC_Testbase/Hardcoral_Ningaloo', '/Annotation_Sets/Final_Sets/Hardcoral_RLS_Ningaloo Marine Park_2016.csv']]
-    
-    path_list = [
-        ['Ecklonia radiata', 'Final_Eck_1_to_10_Database', '/Annotation_Sets/Final_Sets/405405_neighbour_Macroalgal_canopy_cover_NMSC_list.csv'],
-        ['Ecklonia radiata', 'Final_Eck_1_to_10_Database', '/Annotation_Sets/Final_Sets/205282_neighbour_Hard_coral_cover_NMSC_list.csv'],
-        ['Ecklonia radiata', 'Final_Eck_1_to_10_Database', '/Annotation_Sets/Final_Sets/22754_neighbour_Seagrass_cover_NMSC_list.csv']]
-    """
-    path_list = [['/pvol/Final_Eck_1_to_10_Database', '/pvol/Final_Eck_1_to_10_Database/Original_images/1231165_neighbour_Sand _ mud (_2mm)_list.csv']]
+    args = get_args()
+    data = crop_download_images(args)
 
-    for save_path, path in path_list:
-        #save_path = '/pvol/Ecklonia_Database'
-        list_name = path
-
-        data = crop_download_images()
-        data.create_directory_structure(save_path)
-        residual_csv = data.get_downloaded_files(save_path, path)
-        data.download_images(save_path, residual_csv)
+    data.create_directory_structure(data.save_path)
+    residual_csv = data.get_downloaded_files(data.save_path, data.csv_path)
+    data.download_images(data.save_path, residual_csv)
