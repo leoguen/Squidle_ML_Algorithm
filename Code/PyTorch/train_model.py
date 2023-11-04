@@ -1,3 +1,4 @@
+# PyTorch related
 import torch
 import pytorch_lightning as pl
 import torch.nn as nn
@@ -9,12 +10,12 @@ import torchvision.models as models
 from torchvision import transforms
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data.dataset import Dataset
-import glob
-import cv2
-import random
-import optuna
 from torchmetrics.classification import BinaryF1Score
 from pytorch_lightning import LightningModule
+
+# Everything else
+import cv2
+import optuna
 import warnings
 import numpy as np
 from PIL import Image
@@ -24,12 +25,12 @@ import re
 import pandas as pd
 from os.path import isfile, join
 from os import listdir
-import matplotlib.pyplot as plt
+
 
 writer = SummaryWriter()
 
 class CSV_Dataset(Dataset):
-    def __init__(self, img_size, test_list, test, inception, csv_data_path, csv_file_df):
+    def __init__(self, test_list, test, inception, csv_data_path, csv_file_df):
         self.test_indicator = test
         self.csv_data_path = csv_data_path
         self.inception = inception
@@ -463,8 +464,6 @@ def get_args():
 
     parser.add_argument('--percent_test_examples', metavar='pte', type=float, help='The percentage of test examples taking out of dataset', default=0.1)
 
-    parser.add_argument('--eck_test_perc', metavar='eck_tp', type=float, help='The percentage of ecklonia examples in the test set', default=1.0)
-
     parser.add_argument('--limit_train_batches', metavar='ltrb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.01) #!
 
     parser.add_argument('--limit_val_batches', metavar='lvb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.01) #!
@@ -497,9 +496,9 @@ def get_args():
     parser.add_argument('--img_size', metavar='img_size', type=int, help=
     'Defines the size of the used image.', default=299)
     
-    parser.add_argument('--crop_perc', metavar='crop_perc', type=float, help= 'Defines percentage that is used to crop the image.', default=0.14)
+    parser.add_argument('--crop_perc', metavar='crop_perc', type=float, help= 'Defines percentage that is used to crop the image.', default=0.16)
 
-    parser.add_argument('--batch_size', metavar='batch_size', type=int, help= 'Defines batch_size that is used to train algorithm.', default=32) #!
+    parser.add_argument('--batch_size', metavar='batch_size', type=int, help= 'Defines batch_size that is used to train algorithm.', default=192) #!
 
     parser.add_argument('--label_name', metavar='label_name', type=str, help='Name of the label used in the csv file', default='Physical > Substrate > Unconsolidated (soft) > Sand / mud (<2mm)') #Seagrass cover
     #Macroalgal canopy cover
@@ -510,7 +509,7 @@ def get_args():
     
     args =parser.parse_args()
     no_filters = 0
-    return args.percent_valid_examples,args.percent_test_examples, args.eck_test_perc,args.limit_train_batches,args.limit_val_batches,args.limit_test_batches,args.epochs,args.log_path,args.log_name,args.img_path, args.n_trials,args.backbone, no_filters, args.real_test, args.test_img_path, args.img_size, args.csv_path, args.crop_perc, args.batch_size, args.label_name, args.cross_validation, args.col_name
+    return args.percent_valid_examples,args.percent_test_examples,args.limit_train_batches,args.limit_val_batches,args.limit_test_batches,args.epochs,args.log_path,args.log_name,args.img_path, args.n_trials,args.backbone, no_filters, args.real_test, args.test_img_path, args.img_size, args.csv_path, args.crop_perc, args.batch_size, args.label_name, args.cross_validation, args.col_name
 
 def log_to_graph(self, value, var, name ,global_step):
     self.logger.experiment.add_scalars(var, {name: value},global_step)
@@ -641,7 +640,7 @@ def objective(trial: optuna.trial.Trial) -> float:
     test_df1, test_df2, test_df3, train_val_set = get_test_sets(csv_file_df)
 
     #train_val_set = GeneralDataset(img_size, test_list, test = False, inception = inception, test_img_path = csv_path)
-    train_val_set = CSV_Dataset(img_size, test_list, test = False, inception = inception, csv_data_path = csv_path, csv_file_df=train_val_set)
+    train_val_set = CSV_Dataset(test_list, test = False, inception = inception, csv_data_path = csv_path, csv_file_df=train_val_set)
     
     global training_set, validation_set
     training_set, validation_set = torch.utils.data.random_split(train_val_set,[0.80, 0.20], generator=torch.Generator().manual_seed(4234))
@@ -720,7 +719,6 @@ def objective(trial: optuna.trial.Trial) -> float:
         hyperparameters['image_size']= img_size 
     if not(real_test):
         hyperparameters['test_perc'] = PERCENT_TEST_EXAMPLES 
-        hyperparameters['eck_test_perc'] = ECK_TEST_PERC
 
 
     trainer.logger.log_hyperparams(hyperparameters)
@@ -769,7 +767,7 @@ def objective(trial: optuna.trial.Trial) -> float:
     for idx ,test_set in enumerate([test_df1, test_df2, test_df3]):
         global path_label 
         path_label = idx
-        test_set = CSV_Dataset(img_size, test_list, test = True, inception=inception, csv_data_path=csv_path, csv_file_df=test_set)
+        test_set = CSV_Dataset(test_list, test = True, inception=inception, csv_data_path=csv_path, csv_file_df=test_set)
         # Just looks at one dataset
         test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=30)#os.cpu_count())
 
@@ -780,7 +778,7 @@ def objective(trial: optuna.trial.Trial) -> float:
     return f1_score_end
 
 if __name__ == '__main__':
-    PERCENT_VALID_EXAMPLES, PERCENT_TEST_EXAMPLES, ECK_TEST_PERC, LIMIT_TRAIN_BATCHES, LIMIT_VAL_BATCHES, LIMIT_TEST_BATCHES, EPOCHS, LOGGER_PATH, LOG_NAME, IMG_PATH, N_TRIALS, backbone_name, no_filters, real_test, test_img_path, img_size, csv_path, crop_perc, batch_size, label_name, cross_validation, col_name = get_args()
+    PERCENT_VALID_EXAMPLES, PERCENT_TEST_EXAMPLES, LIMIT_TRAIN_BATCHES, LIMIT_VAL_BATCHES, LIMIT_TEST_BATCHES, EPOCHS, LOGGER_PATH, LOG_NAME, IMG_PATH, N_TRIALS, backbone_name, no_filters, real_test, test_img_path, img_size, csv_path, crop_perc, batch_size, label_name, cross_validation, col_name = get_args()
 
     one_word_label = label_name.split()[0] #only use first word
 
@@ -798,23 +796,23 @@ if __name__ == '__main__':
         # Used for precent test
     #for size in range(12,28,2): #!
     #for size in [1,5,8,10,12,14,15,16,18,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95]:
-    for size in [10,12,14,15,16,18,20,25,30,35,40]:
-        
-        crop_perc = size/100
-            #if size == 0: size =1
+    #for size in [10,12,14,15,16,18,20,25,30,35,40]:
+    
+    #crop_perc = size/100
+        #if size == 0: size =1
 
-        study = optuna.create_study(direction="maximize", pruner=optuna.pruners.MedianPruner())
-        study.optimize(objective, n_trials=N_TRIALS, timeout=None)
+    study = optuna.create_study(direction="maximize", pruner=optuna.pruners.MedianPruner())
+    study.optimize(objective, n_trials=N_TRIALS, timeout=None)
 
-        print("Number of finished trials: {}".format(len(study.trials)))
-        print("Best trial:")
-        trial = study.best_trial
+    print("Number of finished trials: {}".format(len(study.trials)))
+    print("Best trial:")
+    trial = study.best_trial
 
-        print("  Value: {}".format(trial.value))
+    print("  Value: {}".format(trial.value))
 
-        print("  Params: ")
-        for key, value in trial.params.items():
-            print("    {}: {}".format(key, value))
+    print("  Params: ")
+    for key, value in trial.params.items():
+        print("    {}: {}".format(key, value))
 
             #importance_dict = optuna.importance.get_param_importances(study)
             #print(importance_dict)

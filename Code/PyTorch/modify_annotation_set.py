@@ -17,6 +17,7 @@ class modify_annotation_set():
         self.col_name = args.col_name
         self.norm_factor = args.norm_factor
         self.save_path = args.save_path
+        self.red_list_path = args.red_list_path
 
     def replace_lineage(self, csv_file_df):
         """
@@ -51,11 +52,29 @@ class modify_annotation_set():
         return csv_file_df
     
     def delete_review(self, csv_file_df): 
-        shape_before = csv_file_df.shape[0]
+
         if self.red_list:
-            red_list_df = pd.read_csv("/home/ubuntu/Documents/IMAS/Code/PyTorch/Annotation_Sets/red_list.csv", dtype=str, usecols=[self.col_name])
-            for value in red_list_df[self.col_name]:
-                csv_file_df = self.delete_entries(csv_file_df, self.col_name, value)
+            # Delete everything that is higher hierarchy than self.coi
+            parts = self.coi.split(" > ")
+
+            # Initialize an empty list to store the results
+            results = []
+
+            # Iterate through the parts in reverse order
+            for i in range(len(parts), 0, -1):
+                # Join the parts back together up to the current index
+                result = " > ".join(parts[:i-1])
+                results.append(result)
+
+            # Delete according to the lineage names
+            for idx, lineage_result in enumerate(results):
+                csv_file_df = self.delete_entries(csv_file_df, 'label_translated_lineage_names', lineage_result)
+        # If a redlist path is given
+            if self.red_list_path != "":
+                red_list_df = pd.read_csv(self.red_list_path, dtype=str, usecols=[self.col_name])
+                for value in red_list_df[self.col_name]:
+                    csv_file_df = self.delete_entries(csv_file_df, self.col_name, value)
+
         csv_file_df = self.delete_entries(csv_file_df, 'tag_names', 'Flagged For Review')
         if 'translated' in self.col_name:
             csv_file_df = self.delete_entries(csv_file_df, 'label_translated_name', 'NaN')
@@ -189,17 +208,16 @@ class modify_annotation_set():
     def save_csv(self, csv_file_df, description):
         if self.red_list: 
             description = description + '_red_listed'
-        
         if self.sibling:
-            path = self.save_path+ str(len(csv_file_df.index))+'_' + str(int(self.sib_factor*100)) +'_sibling_'+ description +'_list.csv'
+            path = self.save_path+ str(len(csv_file_df.index))+'_' + str(int(self.sib_factor*100)) +'_sibling_'+ description +'.csv'
         elif self.norm_factor != 1:
-            path =self.save_path + str(len(csv_file_df.index))+'_1_to_' + str(int(self.norm_factor)) + description +'_list.csv'
+            path =self.save_path + str(len(csv_file_df.index))+'_1_to_' + str(int(self.norm_factor)) + description +'.csv'
         elif self.neighbour:
-            path = self.save_path + str(len(csv_file_df.index))+'_neighbour_' + description +'_list.csv'
+            path = self.save_path + str(len(csv_file_df.index))+'_neighbour_' + description +'.csv'
         else: 
-            path = self.save_path + str(len(csv_file_df.index))+'_'+ description +'_list.csv'
+            path = self.save_path + str(len(csv_file_df.index))+'_'+ description +'.csv'
         
-        #csv_file_df.to_csv(path,index=False)
+        csv_file_df.to_csv(path,index=False)
         print('Saved {} entries with filename: {}'.format(len(csv_file_df.index), path))
 
     def clean_and_extract_filename(self, input_string):
@@ -218,7 +236,8 @@ class modify_annotation_set():
         parser = argparse.ArgumentParser(description="Modify Annotation Set")
         parser.add_argument('--sibling', action='store_true', help="Enable sibling processing (default: False)")
         parser.add_argument('--sibling_list_path', default="/home/ubuntu/IMAS/Code/PyTorch/Annotation_Sets/sibling_list.csv", help="Path to the sibling list CSV file (default: '/home/ubuntu/IMAS/Code/PyTorch/Annotation_Sets/sibling_list.csv')")
-        parser.add_argument('--red_list', action='store_true', help="Enable red list processing (default: False)")
+        parser.add_argument('--red_list', action='store_true', default=True, help="Specifies whether certain entries should be marked as red-listed. If working with lineage_names it is recommended to set this true even if you do not want to supply a red_list file. If set to True (which is default) the csv file will also be browsed for higher hierarchy lenage_names that might include your coi but would be handled as others category. E.g. when using the lineage *Physical > Substrate > Unconsolidated (soft) > Sand / mud (<2mm)*, it would delete all *Physical > Substrate > Unconsolidated (soft)*, *Physical > Substrate* and *Physical*, as those might not exclusively contain our coi.")
+        parser.add_argument('--red_list_path', type=str, default="", help="Determines the path where the red list is saved")
         parser.add_argument('--neighbour', action='store_false', help="Disable neighbour processing (default: True)")
         parser.add_argument('--sib_factor', type=float, default=0.3, help="Sibling factor (default: 0.3)")
         parser.add_argument('--coi', default='Physical > Substrate > Unconsolidated (soft) > Sand / mud (<2mm)', help="Class of Interest (default: 'Physical > Substrate > Unconsolidated (soft) > Sand / mud (<2mm)')")
