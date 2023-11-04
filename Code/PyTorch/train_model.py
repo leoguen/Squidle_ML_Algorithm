@@ -321,16 +321,16 @@ def save_test_csv(self):
     ]
     
     if crop_perc != 0:
-        dir = LOGGER_PATH+LOG_NAME+'/perc_'+str(int(crop_perc*100))+'/' 
+        dir = logger_path+log_name+'/perc_'+str(int(crop_perc*100))+'/' 
     else: 
-        dir = LOGGER_PATH+LOG_NAME+'/'+str(img_size)+'/'
+        dir = logger_path+log_name+'/'+str(img_size)+'/'
 
     test_csv_path = dir + 'lightning_logs/version_{}/'.format(self.trainer.logger.version) + 'test_results_'+ path_list[path_label]+'.csv'
 
     df = pd.DataFrame(self.csv_test_results[path_label], columns=('Others', 'Ecklonia', 'Truth', 'Pred')) 
     
     # saving the dataframe 
-    #df.to_csv(LOGGER_PATH + LOG_NAME +'/'+ str(img_size)+'/lightnings_logs/test_results_'+ path_list[path_label]+'.csv')
+    #df.to_csv(logger_path + log_name +'/'+ str(img_size)+'/lightnings_logs/test_results_'+ path_list[path_label]+'.csv')
     df.to_csv(test_csv_path)
     
 
@@ -507,9 +507,11 @@ def get_args():
     
     parser.add_argument('--col_name', metavar='col_name', type=str, help='Name of the column that should be used for filtering e.g. "label_name", "translated_label_name", "lineage_name"', default='label_translated_lineage_names') 
     
+    parser.add_argument('--grid_search',  help='If True: a grid search from 1 to 99 percent in 5 percent increment.', action='store_true') #!
+
     args =parser.parse_args()
     no_filters = 0
-    return args.percent_valid_examples,args.percent_test_examples,args.limit_train_batches,args.limit_val_batches,args.limit_test_batches,args.epochs,args.log_path,args.log_name,args.img_path, args.n_trials,args.backbone, no_filters, args.real_test, args.test_img_path, args.img_size, args.csv_path, args.crop_perc, args.batch_size, args.label_name, args.cross_validation, args.col_name
+    return args.percent_valid_examples,args.percent_test_examples,args.limit_train_batches,args.limit_val_batches,args.limit_test_batches,args.epochs,args.log_path,args.log_name,args.img_path, args.n_trials,args.backbone, no_filters, args.real_test, args.test_img_path, args.img_size, args.csv_path, args.crop_perc, args.batch_size, args.label_name, args.cross_validation, args.col_name, args.grid_search
 
 def log_to_graph(self, value, var, name ,global_step):
     self.logger.experiment.add_scalars(var, {name: value},global_step)
@@ -658,20 +660,20 @@ def objective(trial: optuna.trial.Trial) -> float:
     if torch.cuda.is_available(): acc_val = 'gpu'
     
     if crop_perc != 0:
-        dir = LOGGER_PATH+LOG_NAME+'/perc_'+str(int(crop_perc*100))+'/' 
+        dir = logger_path+log_name+'/perc_'+str(int(crop_perc*100))+'/' 
     else: 
-        dir = LOGGER_PATH+LOG_NAME+'/'+str(img_size)+'/'
+        dir = logger_path+log_name+'/'+str(img_size)+'/'
 
     trainer = pl.Trainer(
         logger=True,
         default_root_dir=dir,
         enable_checkpointing=True,
-        max_epochs=EPOCHS,
+        max_epochs=epochs,
         accelerator=acc_val,
         #callbacks=[EarlyStopping(monitor="f1_score", mode="max")],
-        limit_train_batches=LIMIT_TRAIN_BATCHES,
-        limit_val_batches=LIMIT_VAL_BATCHES,
-        limit_test_batches=LIMIT_TEST_BATCHES,
+        limit_train_batches=limit_train_batches,
+        limit_val_batches=limit_val_batches,
+        limit_test_batches=limit_test_batches,
         precision=16,
         log_every_n_steps=50,
         #auto_scale_batch_size="binsearch",
@@ -718,7 +720,7 @@ def objective(trial: optuna.trial.Trial) -> float:
     else:
         hyperparameters['image_size']= img_size 
     if not(real_test):
-        hyperparameters['test_perc'] = PERCENT_TEST_EXAMPLES 
+        hyperparameters['test_perc'] = percent_test_examples 
 
 
     trainer.logger.log_hyperparams(hyperparameters)
@@ -731,7 +733,7 @@ def objective(trial: optuna.trial.Trial) -> float:
     # value copied here so that it is not influenced by different testing options
     f1_score_end = trainer.callback_metrics["f1_score"].item()
 
-    #Used for CSV Dataset
+    #Used for Ecklonia
     path_list = [
         '/pvol/Ecklonia_Testbase/WA/Original_images/annotations-u45-leo_kelp_SWC_WA_AI_test-leo_kelp_AI_SWC_WA_test_25pts-8148-7652a9b48f0e3186fe5d-dataframe.csv', 
         '/pvol/Ecklonia_Testbase/NSW_Broughton/Original_images/annotations-u45-leo_kelp_AI_test_broughton_is_NSW-leo_kelp_AI_test_broughton_is_25pts-8152-7652a9b48f0e3186fe5d-dataframe.csv', 
@@ -778,18 +780,16 @@ def objective(trial: optuna.trial.Trial) -> float:
     return f1_score_end
 
 if __name__ == '__main__':
-    PERCENT_VALID_EXAMPLES, PERCENT_TEST_EXAMPLES, LIMIT_TRAIN_BATCHES, LIMIT_VAL_BATCHES, LIMIT_TEST_BATCHES, EPOCHS, LOGGER_PATH, LOG_NAME, IMG_PATH, N_TRIALS, backbone_name, no_filters, real_test, test_img_path, img_size, csv_path, crop_perc, batch_size, label_name, cross_validation, col_name = get_args()
+    percent_valid_examples, percent_test_examples, limit_train_batches, limit_val_batches, limit_test_batches, epochs, logger_path, log_name, img_path, n_trials, backbone_name, no_filters, real_test, test_img_path, img_size, csv_path, crop_perc, batch_size, label_name, cross_validation, col_name, grid_search = get_args()
 
     one_word_label = label_name.split()[0] #only use first word
-
-    test_log_count = 0 # Needed to display all five datasets
     cross_counter = 0
     # Used for fixed bounding_box
     backbone_name, no_filters ='inception_v3', 0
     optimizer_name = 'AdamW'
     l2_param = 0.01
 
-    #for backbone_name, no_filters in model_specs:
+    
     #for cross_counter in range(cross_validation):
         
         
@@ -800,21 +800,33 @@ if __name__ == '__main__':
     
     #crop_perc = size/100
         #if size == 0: size =1
+    
+    if grid_search == True: 
+        for_array = range(1,99,5)
+        for_array = [float(num) / 100 for num in for_array]
+    elif cross_validation != 0:
+        for_array = range(cross_validation)
+    else: 
+        for_array = [1]
 
-    study = optuna.create_study(direction="maximize", pruner=optuna.pruners.MedianPruner())
-    study.optimize(objective, n_trials=N_TRIALS, timeout=None)
+    for i in for_array:
+        # If this is a Gridsearch update the crop_perc for each iteration
+        if grid_search:
+            crop_perc = i
+        study = optuna.create_study(direction="maximize", pruner=optuna.pruners.MedianPruner())
+        study.optimize(objective, n_trials=n_trials, timeout=None)
 
-    print("Number of finished trials: {}".format(len(study.trials)))
-    print("Best trial:")
-    trial = study.best_trial
+        print("Number of finished trials: {}".format(len(study.trials)))
+        print("Best trial:")
+        trial = study.best_trial
 
-    print("  Value: {}".format(trial.value))
+        print("  Value: {}".format(trial.value))
 
-    print("  Params: ")
-    for key, value in trial.params.items():
-        print("    {}: {}".format(key, value))
+        print("  Params: ")
+        for key, value in trial.params.items():
+            print("    {}: {}".format(key, value))
 
-            #importance_dict = optuna.importance.get_param_importances(study)
-            #print(importance_dict)
-                    
-                #cli_main()
+                #importance_dict = optuna.importance.get_param_importances(study)
+                #print(importance_dict)
+                        
+                    #cli_main()

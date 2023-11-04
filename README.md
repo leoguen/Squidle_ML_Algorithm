@@ -122,6 +122,8 @@ The code can be run with the following parameters:
 
 + **`col_name`**: (*String*) Name of the column that should be used for filtering, such as "label_name", "translated_label_name", "lineage_name". Default is **'label_translated_lineage_names'**.
 
++ **`grid_search`**: (*Boolean*) If True: a grid search from 1 to 99 percent in 5 percent increment.
+
 Let's go through some possible commands to use this code. Before I run a long test I make sure that everything works correctly so I would for example run a command like this
 
 **python3 train_model.py --limit_train_batches=0.1 --limit_val_batches=0.1 --limit_test_batches=0.1 --log_name=Sand_Mud_test --epochs=2 --batch_size=128 --csv_path=/pvol/Final_Eck_1_to_10_Database/Original_images/1210907_neighbour_Sand _ mud (_2mm)_list.csv**
@@ -134,10 +136,18 @@ original_images/
 │
 └── All_Images/         # Subdirectory containing all images
 
-Once that run is finished you can check the output using the tensorboard file. See the tensorboard documentation on different ways to do this, I personally like the VS Code implementation. If that looks all good you can run the code with the correct setup. I personally run now a grid search over different patch percentages to see which performs best for my coi (See the paper for an elaborate explanation) and once that is done I run a full 50 epoch training.
+Once that run is finished you can check the output using the tensorboard file. See the tensorboard documentation on different ways to do this, I personally like the VS Code implementation. If that looks all good you can run the code with the correct setup. I personally run now a grid search over different patch percentages to see which performs best for my coi (See the paper for an elaborate explanation) the implementation here is 5% increments from 1 to 99% if you want to adapt this you have to change it in the code. I like to do a rough search and then naarow it down in 2% increments. 
+
+**python3 train_model.py --grid_search --limit_train_batches=0.1 --limit_val_batches=0.1 --limit_test_batches=0.1 --log_name=Sand_Mud_test --epochs=10 --batch_size=128 --csv_path=/pvol/Final_Eck_1_to_10_Database/Original_images/1210907_neighbour_Sand _ mud (_2mm)_list.csv**
+
+Once that is done I run a full 50 epoch training.
 
 **python3 train_model.py --limit_train_batches=1.0 --limit_val_batches=1.0 --limit_test_batches=1.0 --log_name=Sand_Mud_Grid --epochs=50 --batch_size=128 --csv_path=/pvol/Final_Eck_1_to_10_Database/Original_images/1210907_neighbour_Sand _ mud (_2mm)_list.csv**
 
-If you need crossvalidation for a publication that is also possible using the **`cross_validation`** flag. 
+If you need crossvalidation for a publication that is also possible using the **`cross_validation`** flag. Be aware you cannot run  **`cross_validation`** and  **`grid_search`** at the same time.
 
-Edit code to correctly do gridsearch and crossvalidation. 
+**python3 train_model.py --crossvalidation=5 --limit_train_batches=1.0 --limit_val_batches=1.0 --limit_test_batches=1.0 --log_name=Sand_Mud_Grid --epochs=50 --batch_size=128 --csv_path=/pvol/Final_Eck_1_to_10_Database/Original_images/1210907_neighbour_Sand _ mud (_2mm)_list.csv**
+
+Edit code to correctly do crossvalidation (correct percentage split). 
+
+Then link to the data server code.
