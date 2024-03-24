@@ -1,7 +1,0 @@
-/api/label_scheme/11/export?disposition=inline&translate={"vocab_registry_keys":["worms","caab","catami"],"target_label_scheme_id":"65"}&include_columns=["label_scheme.name","lineage_names","name","id","
-translated.id
-","
-translated.name
-","translated.lineage_names","translated.translation_info","translated.label_scheme.name"] 
-
-https://squidle.org/api/label_scheme/7/export?disposition=inline&translate={%22vocab_registry_keys%22:[%22worms%22,%22caab%22,%22catami%22],%22target_label_scheme_id%22:%2265%22}&include_columns=[%22label_scheme.name%22,%22lineage_names%22,%22name%22,%22id%22,%22translated.id%22,%22translated.name%22,%22translated.lineage_names%22,%22translated.translation_info%22,%22translated.label_scheme.name%22]
