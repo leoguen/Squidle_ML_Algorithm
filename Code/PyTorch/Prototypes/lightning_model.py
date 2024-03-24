@@ -16,6 +16,43 @@ import glob
 import cv2
 import random
 
+class GeneralDataset(Dataset):
+    def __init__(self, img_size, test_list, test):
+        if test: # True test dataset is returned
+            # Add unpadded and padded entries to data
+            self.data = test_list[0]
+            self.data = self.data + test_list[1]
+            self.class_map = {"Ecklonia" : 0, "Others": 1}
+        else: 
+            self.imgs_path = '/pvol' + '/' + str(img_size)+ '_images/'
+            file_list = [self.imgs_path + 'Others', self.imgs_path + 'Ecklonia']
+            self.data = []
+            for class_path in file_list:
+                class_name = class_path.split("/")[-1]
+                for img_path in glob.glob(class_path + "/*.jpg"):
+                    self.data.append([img_path, class_name])
+            
+            # Delete all entries that are used in test_list
+            del_counter = len(self.data)
+            print('Loaded created dataset of {} entries. \nNow deleting {} duplicate entries.'.format(len(self.data), len(test_list[0])))
+            for test_entry in (test_list[0]):
+                if test_entry in self.data:
+                    self.data.remove(test_entry)
+                    # !!!Why does it only remove half of all duplicate entries?
+            print('Deleted {} duplicate entries'.format(del_counter-len(self.data)))
+            self.class_map = {"Ecklonia" : 0, "Others": 1}
+        
+    def __len__(self):
+        return len(self.data)    
+    
+    def __getitem__(self, idx):
+        img_path, class_name = self.data[idx]
+        img = cv2.imread(img_path)
+        class_id = self.class_map[class_name]
+        img_tensor = transforms.ToTensor()(img)
+        class_id = torch.tensor(class_id)
+        return img_tensor, class_id
+
 class UniformDataset(Dataset):
     def __init__(self, img_size):
         self.imgs_path = '/pvol' + '/' + str(img_size)+ '_images/'
@@ -190,7 +227,7 @@ class KelpClassifier(pl.LightningModule):
     '''
 
 def image_to_tb(self, batch, batch_idx):
-    
+
     if batch_idx == 0:
         tensorboard = self.logger.experiment
         others_batch_images = []
@@ -205,6 +242,41 @@ def image_to_tb(self, batch, batch_idx):
         tensorboard.close()
         #tensorboard.add_image(batch[0])
     return batch_idx
+
+def get_test_dataset(img_size, test_perc):
+    unpad_path = '/pvol/' + str(img_size)+ '_images/'
+    pads_path = '/pvol/' + str(img_size)+ '_images/Padding/'
+    both_path = [unpad_path, pads_path]
+    unpad_file_list = [unpad_path + 'Others', unpad_path + 'Ecklonia']
+    pad_file_list =  [pads_path + 'Others', pads_path + 'Ecklonia']
+    both_file_list = [unpad_file_list, pad_file_list]
+    perc = [test_perc * 100, 1]
+    unpad_data = []
+    pad_data = []
+    both_data = [unpad_data, pad_data]
+    perc_id = 0
+    counter = [[0,0],[0,0]]
+    if int(test_perc * 0.05 * 100) ==0: perc[1] = 1
+    else: perc[1] = int(test_perc * 0.05 * 100)
+    for idx in range(2):
+        # First loop iterates over unpad files, second over padded files
+        for class_path in both_file_list[idx]:
+            class_name = class_path.split("/")[-1]
+            for img_path in glob.glob(class_path + "/*.jpg"):
+                #only add path to data if test_perc allows
+                if class_name == 'Others': 
+                    perc_id = 0
+                    class_id = 0
+                else: 
+                    perc_id = 1
+                    class_id = 1
+                if random.randint(0,99) < perc[perc_id]:
+                    both_data[idx].append([img_path, class_name])
+                    counter[idx][class_id] += 1
+    print('The Test-Dataset comprises of: \nUniform Ecklonia {}\nUniform Others {} \nPadded Ecklonia {}\nPadded Others {}'.format(counter[0][1], counter[0][0], counter[1][1], counter[1][0]))
+    return both_data
+
+
 
 def cli_main():
     #writer = SummaryWriter(log_dir='/pvol/runs/')
@@ -221,11 +293,13 @@ def cli_main():
     # ------------
 
     # Create datasets for training & validation, download if necessary
-    full_set = UniformDataset(img_size)
-    test_perc = 0.2
-    training_set, validation_set = torch.utils.data.random_split(full_set,[0.85, 0.15], generator=torch.Generator().manual_seed(43))
-    test_set = MixedDataset(img_size, test_perc)
+    test_perc = 0.1
+    test_list = get_test_dataset(img_size, test_perc)
+    test_set = GeneralDataset(img_size, test_list, test = True)
+    train_val_set = GeneralDataset(img_size, test_list, test = False)
     
+    training_set, validation_set = torch.utils.data.random_split(train_val_set,[0.90, 0.10], generator=torch.Generator().manual_seed(43))
+
     # Create data loaders for our datasets; shuffle for training and for validation
     train_loader = torch.utils.data.DataLoader(training_set, batch_size=batch_size, shuffle=True, num_workers=os.cpu_count())
     print('Dataset image size: {}'.format(img_size))
@@ -245,9 +319,10 @@ def cli_main():
     # ------------
     # training
     # ------------
-    tb_logger = pl_loggers.TensorBoardLogger(save_dir="/pvol/logs/lightning_logs", name=str(img_size)+'_'+backbone_name+'_Image_Size')
+    trial_name = backbone_name + '_size_check'
+    tb_logger = pl_loggers.TensorBoardLogger(save_dir="/pvol/logs/lightning_logs/Large_Dataset", name=str(img_size)+'_'+trial_name+'_Image_Size')
     if torch.cuda.is_available(): 
-        max_epochs= 30
+        max_epochs= 20
         trainer = pl.Trainer(
                 accelerator='gpu', 
                 devices=1, 
@@ -275,16 +350,17 @@ def cli_main():
     return model 
 
 if __name__ == '__main__':
-    img_list = [304, 24, 32, 288, 300, 320, 336, 400, 448, 480, 512, 544, 576, 608]
+    img_list = [#304, 24, 32, 288, 300, 320, 
+                336, 400, 448, 480, 512, 544, 576, 608]
     #img_list = [300]
 
     model_specs = [
-        ['resnet50', 0],
+        #['resnet50', 0],
         #['googlenet', 0], 
         #['convnext_large', 1536], 
         #['convnext_small', 768], 
-        ['resnext101_64x4d', 0], 
-        ['efficientnet_v2_l', 1280], 
+        #['resnext101_64x4d', 0], 
+        #['efficientnet_v2_l', 1280], 
         #['vit_h_14', 1280], 
         ['regnet_x_32gf', 0], 
         #['swin_v2_b', 1024]
@@ -292,9 +368,12 @@ if __name__ == '__main__':
 
     for img_size in img_list:
         for backbone_name, no_filters in model_specs:
-            model = cli_main()
+            
+            #cli_main()
+            
             try:
                 cli_main()
             except:
                 print('!!! Error \n   Problem with img_size {} and backbone {}'.format(img_size, backbone_name))
                 continue
+            

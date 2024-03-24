@@ -1,0 +1,5 @@
+{
+    "ECK": [{"name":"vocab_elements","op":"any","val":{"name":"key","op":"eq","val":"214344"}}],
+    "ASC": [{"name":"vocab_elements","op":"any","val":{"name":"key","op":"eq","val":"1839"}}],
+    "SUB": [{"name":"vocab_elements","op":"any","val":{"name":"key","op":"eq","val":"82001000"}}]
+  }

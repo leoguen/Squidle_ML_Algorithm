@@ -1,8 +1,8 @@
 from torchvision import transforms
 from torchvision.datasets import ImageFolder
 from torch.utils.data import DataLoader
-from lightning_model import KelpClassifier
-from lightning_model import MixedDataset
+from PyTorch.Prototypes.lightning_model import KelpClassifier
+from PyTorch.Prototypes.lightning_model import MixedDataset
 from torch.utils.data import Subset
 import torch
 import random as rnd
