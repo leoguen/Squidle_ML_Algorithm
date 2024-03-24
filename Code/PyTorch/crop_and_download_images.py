@@ -111,30 +111,30 @@ if __name__ == "__main__":
     #[32,32],
     #[24,24],
     [288,288],
-    [304,304],
-    [320,320],
-    [336,336],
-    [400,400],
-    [448,448],
-    [480,480], 
-    [512,512], 
-    [544,544], 
-    [576,576], 
-    [608,608],
-    [128,128],
-    [224,224],
-    [230,230],
-    [240,240],
-    [256,256],
-    [272,272], 
-    [64,64],
+    #[304,304],
+    #[320,320],
+    #[336,336],
+    #[400,400],
+    #[448,448],
+    #[480,480], 
+    #[512,512], 
+    #[544,544], 
+    #[576,576], 
+    #[608,608],
+    #[128,128],
+    #[224,224],
+    #[230,230],
+    #[240,240],
+    #[256,256],
+    #[272,272], 
+    #[64,64],
     ]
     #download_list = [[336,336]]
     for bounding_box in download_list:
         print(bounding_box)
         here = os.path.dirname(os.path.abspath(__file__))
-        save_path = '/pvol'
-        list_name = '/Annotation_Sets/106844_NORMALIZED_FULL_ANNOTATION_LIST.csv'
+        save_path = '/home/leo/Documents/IMAS/Data/288_images_review'
+        list_name = '/Annotation_Sets/106836_NORMALIZED_FULL_ANNOTATION_LIST.csv'
 
         data = crop_download_images()
 

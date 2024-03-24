@@ -3,6 +3,7 @@ Orga/
 Code/Course_Chris_Jackett/
 Code/Optuna/
 API_TOKEN.txt
+Literature/
 
 # No trials or runs
 Trials/
@@ -26,4 +27,16 @@ images_*/
 test.csv
 id_list.txt
 rest_id_list.txt
-
+run_bot_local.py
+/Code/PyTorch/288_fix_lightning_logs/
+/Code/Squidle
+/IMAS-Light/
+/Data/
+/Code/SQ/
+authorized_keys
+/Code/PyTorch/Ari.txt
+/Code/PyTorch/__pycache__/
+/Paper/
+/Presentations/
+/Code/PyTorch/Prototypes/__pycache__/
+/Code/PyTorch/Prototypes/
