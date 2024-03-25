@@ -67,6 +67,9 @@ Less important but also adjustable are the following variables:
 
 + **`defined_name`**: (*String*) If you want to add a specific string to the file name.
 
+The simplest command in this case would be:
+**python3 modify_annotation_set.py --annotationset_path=./Annotationsets/[YOUR_Full_Annotation_List].csv --coi='Physical > Substrate > Unconsolidated (soft) > Sand / mud (<2mm)'**
+
 This file now inlcudes all the annotations that we want to use for our ML training, in the next step we need to download the images. 
 
 ## Third Step - Download Images
