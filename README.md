@@ -81,6 +81,10 @@ The *download_images.py* is a simple file that downloads the images, checks for 
 
 After the script execution, it performs a check to determine whether the images have already been placed in the designated folder. This allows for the convenience of using a single folder to train various types of machine learning classifiers. In cases where there is an overlap in images needed by two different classifiers, the image is downloaded only once. If an image is exclusively required for one model, it will be ignored by the other, ensuring efficient use of resources.
 
+One easy command to run in this case is:
+
+**python3 download_images.py --csv_path='./Annotationsets/[Your_modified_annotationset].csv'**
+
 ## Fourth Step - Train the Classifier
 Now that the database is prepared and downloaded we can start training the model using the *train_model.py*. Generally the model is trained using PyTorch and the PyTorch lightning wrapper. You can find an Optuna structure in there for parameter optimization, but this is not necessary for our current training, but highly recommended if you want to play around with the parameters. Overall, the script is designed to load a dataset, train a neural network model, evaluate its performance, and optimize hyperparameters using the Optuna library. It provides flexibility in configuring various aspects of the machine learning process, such as dataset loading, model architecture, hyperparameter settings, and optimization strategy.
 
