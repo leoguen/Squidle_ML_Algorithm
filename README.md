@@ -1,7 +1,7 @@
 # Code relating to the paper Harnessing the power of SQUIDLE+ to develop flexible machine learning models
 This code uses PyTorch to train an inception_v3 model on a dataset created using the Squidle translation tool.
 
-The first chapter of this README is used to explain the workflow on how to create an individual trainingset and train a model. Further below you can find a more elaborate description of each file. The libraries needed to run this experiment are saved in the requirements.txt. 
+This README is used to explain the workflow on how to create an individual trainingset and train a model. The libraries needed to run this experiment are saved in the requirements.txt. You can find the files in the directory "Code/PyTorch/", a GPU with cuda is strongly recommended. 
 
 ## First Step - Acquire full Annotationlist
 You need to run the *create_csv_list.py* file. This is file is used to browse through all the annotationsets that you have access to. To run this script you need to add the following information when running the script (all of them have defaults, so if you are unsure you only need to add the api_token): 
@@ -66,6 +66,9 @@ Less important but also adjustable are the following variables:
 + **`sib_factor`**: (*Float*) This factor is then used in the calculations related to siblings and increases the presence of these species in the modelset.
 
 + **`defined_name`**: (*String*) If you want to add a specific string to the file name.
+
++ **`annotationset_path`**: (*String*) Path where your annotationset is saved.
+
 
 The simplest command in this case would be:
 **python3 modify_annotation_set.py --annotationset_path=./Annotationsets/[YOUR_Full_Annotation_List].csv --coi='Physical > Substrate > Unconsolidated (soft) > Sand / mud (<2mm)'**
