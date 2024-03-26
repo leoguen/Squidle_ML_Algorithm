@@ -1,5 +1,5 @@
 # Code relating to the paper Harnessing the power of SQUIDLE+ to develop flexible machine learning models
-This code uses PyTorch to train an inception_v3 model on a dataset created using the Squidle translation tool. Last successful test with Python 3.11.4.
+This code uses PyTorch to train an inception_v3 model on a dataset created using the Squidle translation tool. Last successful test with Python 3.11.4. Packages can be installed with requirements.txt, please be aware of which system (CPU/GPU) you are using when installing PyTorch (https://pytorch.org/).
 
 This README is used to explain the workflow on how to create an individual trainingset and train a model. The libraries needed to run this experiment are saved in the requirements.txt. You can find the files in the directory "Code/PyTorch/", a GPU with cuda is strongly recommended. 
 
