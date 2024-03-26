@@ -32,6 +32,12 @@ Physical > Substrate > Unconsolidated (soft) > Sand / mud (<2mm) > Mud / silt (<
 
 We can see in this file that we have access to 329721 *Coarse sand (with shell fragments)* entries, 246020 *Macroalgae* and 121946 *Filamentous / filiform* entries. It is very important to be aware of the lineage of the label that you want to train. I fyou would like to train for example a classifier on *Filamentous / filiform* you should probably exclude labels like *Macroalgae* as they might include *Filamentous / filiform* entries, just that in the project it was not necessary to go down to the morphospecies level. This can be done using the red_list option in the *modify_annotation.py* set. For this example we want to train a *Sand / mud (<2mm)* classifier and don't care about lower level specifications (like *Mud / silt (<64um)*). Therefore we can just include everything that has the lineage of *Physical > Substrate > Unconsolidated (soft) > Sand / mud (<2mm)*.
 
+The easiest way to run this is by just calling the file together with you API code:
+
+**python3 create_csv_list.py --api_token=1234567890**
+
+This will save the annotationset into the directory "Annotationsets". You will find your API token right on the Squidle+ start page in the "My Data" section where it says: "Hi [name]: SIGN OUT, API TOKEN, ACCOUNT".
+
 ## Second Step - Modify Annotationlist
 We now have a large csv file which incorporates all accessible annotations. We could train a model on this dataset and would probably achieve sufficient results. But as pointed out in the paper, this would require huge computing resources and/or time. Thus we need to modify our annotation set to acquire a more efficient and reduced dataset, our model-dataset. This is done using the **neighbour method** (for an explanation see paper); basically we define a label-of-interest, we include all labels that belong to this label-of-interest and add them to our model-dataset. Further, if an image has at least on label-of-interest annotation we add all the other labels to our model-dataset as well. 
 
@@ -61,6 +67,9 @@ Less important but also adjustable are the following variables:
 
 + **`defined_name`**: (*String*) If you want to add a specific string to the file name.
 
+The simplest command in this case would be:
+**python3 modify_annotation_set.py --annotationset_path=./Annotationsets/[YOUR_Full_Annotation_List].csv --coi='Physical > Substrate > Unconsolidated (soft) > Sand / mud (<2mm)'**
+
 This file now inlcudes all the annotations that we want to use for our ML training, in the next step we need to download the images. 
 
 ## Third Step - Download Images
@@ -71,6 +80,10 @@ The *download_images.py* is a simple file that downloads the images, checks for 
 + **`csv_path`**: (*String*) Defines from where the csv file can be loaded. 
 
 After the script execution, it performs a check to determine whether the images have already been placed in the designated folder. This allows for the convenience of using a single folder to train various types of machine learning classifiers. In cases where there is an overlap in images needed by two different classifiers, the image is downloaded only once. If an image is exclusively required for one model, it will be ignored by the other, ensuring efficient use of resources.
+
+One easy command to run in this case is:
+
+**python3 download_images.py --csv_path='./Annotationsets/[Your_modified_annotationset].csv'**
 
 ## Fourth Step - Train the Classifier
 Now that the database is prepared and downloaded we can start training the model using the *train_model.py*. Generally the model is trained using PyTorch and the PyTorch lightning wrapper. You can find an Optuna structure in there for parameter optimization, but this is not necessary for our current training, but highly recommended if you want to play around with the parameters. Overall, the script is designed to load a dataset, train a neural network model, evaluate its performance, and optimize hyperparameters using the Optuna library. It provides flexibility in configuring various aspects of the machine learning process, such as dataset loading, model architecture, hyperparameter settings, and optimization strategy.
