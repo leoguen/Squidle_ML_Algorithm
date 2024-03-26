@@ -16,7 +16,6 @@ class crop_download_images():
         # Load the CSV file into a pandas dataframe
         df = pd.read_csv(csv_path, low_memory=False)
 
-        dir_path = dir_path + '/Original_images/All_Images/'
         # Create a pandas dataframe from the .jpg files in save_path
         jpg_files_df = pd.DataFrame({'filename': [f for f in os.listdir(dir_path) if f.endswith('.jpg')]})
 
@@ -50,7 +49,7 @@ class crop_download_images():
         df.drop_duplicates(subset=['point_media_path_best'], inplace=True)
         df = df.reset_index(drop=True)
         return df
-
+    """
     def create_directory(save_path, dir_name):    
         if os.path.exists(save_path+dir_name) == True:
             print("The directory already exist, no new directory is going to be created.")
@@ -58,14 +57,13 @@ class crop_download_images():
             os.mkdir(save_path+dir_name)
     
     def create_directory_structure(self, save_path):
-
         structure_list=[            
         '/Original_images', 
         '/Original_images/All_Images', 
         ]
         for i in structure_list:
             crop_download_images.create_directory(save_path, i)
-    
+    """
     def download_images(self, save_path, list_name):
         # Used to split up data in Ecklonia and Others
         if isinstance(list_name, str):
@@ -101,7 +99,6 @@ class crop_download_images():
         print('Problematic files have been saved')
 
     def check_image(self, save_path, csv_file_df, index, empty_prob_list, crop_prob_list):
-        label = 'All_Images'
         error = False
         try:
             # download the image, convert it to a NumPy array, and then read
@@ -124,7 +121,7 @@ class crop_download_images():
                     second_part =str(re.sub(".*/(.*)", "\\1", csv_file_df.point_media_path_best[index]))
 
                 file_name = str(re.sub("\W", "_", csv_file_df.point_media_deployment_campaign_key[index])) +"-"+ re.sub("\W", "_",second_part)
-                file_path_and_name = save_path +'/Original_images/' + label + '/' + file_name +'.jpg'
+                file_path_and_name = save_path + file_name +'.jpg'
                 
                 return file_path_and_name, original_image, empty_prob_list, crop_prob_list, error
             else: # Image is empty
@@ -142,14 +139,14 @@ class crop_download_images():
         
 def get_args():
     parser = argparse.ArgumentParser(description="Crop and Download Images")
-    parser.add_argument('--save_path', default='/pvol/Final_Eck_1_to_10_Database', help="Save path (default: '/pvol/Final_Eck_1_to_10_Database')")
-    parser.add_argument('--csv_path', default='/pvol/Final_Eck_1_to_10_Database/Original_images/1231165_neighbour_Sand _ mud (_2mm)_list.csv', help="CSV file path (default: '/pvol/Final_Eck_1_to_10_Database/Original_images/1231165_neighbour_Sand _ mud (_2mm)_list.csv')")
+    parser.add_argument('--save_path', default='/home/leo/Documents/IMAS/Git_Test/IMAS/Code/PyTorch/Images/', help="Save path (default: './Images/')")
+    parser.add_argument('--csv_path', default='/home/leo/Documents/IMAS/Git_Test/IMAS/Code/PyTorch/Annotationsets/29219_neighbour_Sand _ mud (_2mm).csv', help="CSV file path")
     return parser.parse_args()
 
 if __name__ == "__main__":
     args = get_args()
     data = crop_download_images(args)
 
-    data.create_directory_structure(data.save_path)
+    #data.create_directory_structure(data.save_path)
     residual_csv = data.get_downloaded_files(data.save_path, data.csv_path)
     data.download_images(data.save_path, residual_csv)

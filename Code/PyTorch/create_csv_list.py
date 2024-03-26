@@ -125,14 +125,15 @@ class create_csv_list():
             api_token = args.api_token
         return api_token
 
-    def parse_args(self, id_list):
+    def parse_args(self):
         current_date = datetime.now().strftime('%Y%m%d')  # This will give you the date in the format YYYYMMDD
         parser = argparse.ArgumentParser(description='Create CSV List for Annotation Sets')
         parser.add_argument('--bool_translation', type=bool, default=True, help='Decide whether to obtain the used labelling scheme or translate it to a different one as well')
         parser.add_argument('--export_scheme', type=str, default='/export?supplementary_annotation_set_id=&template=dataframe.csv&disposition=attachment&include_columns=["label.id","label.uuid","label.name","label.lineage_names","comment","needs_review","tag_names","updated_at","point.id","point.x","point.y","point.t","point.data","point.is_targeted","point.media.id","point.media.key","point.media.path_best","point.pose.timestamp","point.pose.lat","point.pose.lon","point.pose.alt","point.pose.dep","point.media.deployment.key","point.media.deployment.campaign.key","label.translated.id","label.translated.uuid","label.translated.name","label.translated.lineage_names","label.translated.translation_info"]&f={"operations":[{"module":"pandas","method":"json_normalize"},{"method":"sort_index","kwargs":{"axis":1}}]}&q={"filters":[{"name":"label_id","op":"is_not_null"}]}&translate={"vocab_registry_keys":["worms","caab","catami"],"target_label_scheme_id":"1"}', help='Export scheme for annotation sets')
-        parser.add_argument('--anno_name', type=str, default=f'/pvol/Annotationsets/Full_Annotationsets/{current_date}_{str(len(id_list))}_Full_Annotation_List.csv', help='Annotation set name')
-        parser.add_argument('--prob_name', type=str, default=f'/pvol/Annotationsets/Full_Annotationsets/{current_date}_{str(len(id_list))}_Problem_Files_Full_Annotation_List.csv', help='Problem file name')
-    
+        parser.add_argument('--anno_name', type=str, default=f'./Annotationsets/{current_date}_Full_Annotation_List.csv', help='Annotation set name')
+        parser.add_argument('--prob_name', type=str, default=f'./Annotationsets/{current_date}_Problem_Files_Full_Annotation_List.csv', help='Problem file name')
+        parser.add_argument('--api_token', type=str, default="/home/ubuntu/Documents/IMAS/API_TOKEN.txt", help='Enter API token or path to API token saved in .txt')
+
         return parser.parse_args()
 
 if __name__ == "__main__":
@@ -141,14 +142,22 @@ if __name__ == "__main__":
     data = create_csv_list()
     
     # Read API Token
-    api_token = data.api_parse_args()
+    #api_token = data.api_parse_args()
     
     # Get List of all Annotationset ID accessible to you
+    
+    #print('Retrieved a list of {} annotation sets.'.format(len(id_list)))
+
+    args = data.parse_args()
+
+    # Check if the provided value is a file path
+    if os.path.isfile(args.api_token):
+        api_token = data.load_token(args.api_token)
+    else:
+        # Assume the provided value is the API token itself
+        api_token = args.api_token
+
     id_list = data.get_annotation_id(api_token, URL,  dataset_url)
-    print('Retrieved a list of {} annotation sets.'.format(len(id_list)))
-
-    args = data.parse_args(id_list)
-
     annotation_url = URL+dataset_url
 
     annotation_name = data.get_annotation_set(api_token, annotation_url,  id_list, args.bool_translation, args.export_scheme, args.anno_name, args.prob_name)

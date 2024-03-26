@@ -5,8 +5,7 @@ import argparse
 
 class modify_annotation_set():
 
-    def __init__(self):
-        args = self.get_args()
+    def __init__(self, args):
         self.sibling = args.sibling
         self.sibling_list_path = args.sibling_list_path
         self.red_list = args.red_list
@@ -18,6 +17,7 @@ class modify_annotation_set():
         self.norm_factor = args.norm_factor
         self.save_path = args.save_path
         self.red_list_path = args.red_list_path
+        self.annotationset_path = args.annotationset_path
 
     def replace_lineage(self, csv_file_df):
         """
@@ -196,7 +196,7 @@ class modify_annotation_set():
 
         if self.neighbour:
             #add addi_anno_coi to csv_file_df
-            csv_file_df = csv_file_df.append(addi_anno_coi)
+            csv_file_df = pd.concat([csv_file_df, addi_anno_coi], ignore_index=True)
             csv_file_df = csv_file_df.drop_duplicates()
         print('Normalized Dataset size: {} with {} classes'.format(csv_file_df.pivot_table(index = [self.col_name], aggfunc ='size').sum(), len(csv_file_df.pivot_table(index = [self.col_name], aggfunc ='size'))))
         csv_file_df.reset_index(drop=True, inplace=True)
@@ -232,31 +232,32 @@ class modify_annotation_set():
         
         return cleaned_filename
     
-    def get_args(self):
-        parser = argparse.ArgumentParser(description="Modify Annotation Set")
-        parser.add_argument('--sibling', action='store_true', help="Enable sibling processing (default: False)")
-        parser.add_argument('--sibling_list_path', default="/home/ubuntu/IMAS/Code/PyTorch/Annotation_Sets/sibling_list.csv", help="Path to the sibling list CSV file (default: '/home/ubuntu/IMAS/Code/PyTorch/Annotation_Sets/sibling_list.csv')")
-        parser.add_argument('--red_list', action='store_true', default=True, help="Specifies whether certain entries should be marked as red-listed. If working with lineage_names it is recommended to set this true even if you do not want to supply a red_list file. If set to True (which is default) the csv file will also be browsed for higher hierarchy lenage_names that might include your coi but would be handled as others category. E.g. when using the lineage *Physical > Substrate > Unconsolidated (soft) > Sand / mud (<2mm)*, it would delete all *Physical > Substrate > Unconsolidated (soft)*, *Physical > Substrate* and *Physical*, as those might not exclusively contain our coi.")
-        parser.add_argument('--red_list_path', type=str, default="", help="Determines the path where the red list is saved")
-        parser.add_argument('--neighbour', action='store_false', help="Disable neighbour processing (default: True)")
-        parser.add_argument('--sib_factor', type=float, default=0.3, help="Sibling factor (default: 0.3)")
-        parser.add_argument('--coi', default='Physical > Substrate > Unconsolidated (soft) > Sand / mud (<2mm)', help="Class of Interest (default: 'Physical > Substrate > Unconsolidated (soft) > Sand / mud (<2mm)')")
-        parser.add_argument('--defined_name', default="", help="Additional string for the filename (default: '')")
-        parser.add_argument('--col_name', default='label_translated_lineage_names', help="Column name (default: 'label_translated_lineage_names')")
-        parser.add_argument('--norm_factor', type=int, default=1, help="Normalization factor (default: 1)")
-        parser.add_argument('--save_path', default="/pvol/Annotationsets/Full_Annotationsets/", help="Save path (default: '/pvol/Annotationsets/Full_Annotationsets/')")
-        return parser.parse_args()
+def get_args():
+    parser = argparse.ArgumentParser(description="Modify Annotation Set")
+    parser.add_argument('--sibling', action='store_true', help="Enable sibling processing (default: False)")
+    parser.add_argument('--sibling_list_path', default="./Annotation_Sets/sibling_list.csv", help="Path to the sibling list CSV file (default: '/home/ubuntu/IMAS/Code/PyTorch/Annotation_Sets/sibling_list.csv')")
+    parser.add_argument('--red_list', action='store_true', help="Specifies whether certain entries should be marked as red-listed. If working with lineage_names it is recommended to set this true even if you do not want to supply a red_list file. If set to True (which is default) the csv file will also be browsed for higher hierarchy lenage_names that might include your coi but would be handled as others category. E.g. when using the lineage *Physical > Substrate > Unconsolidated (soft) > Sand / mud (<2mm)*, it would delete all *Physical > Substrate > Unconsolidated (soft)*, *Physical > Substrate* and *Physical*, as those might not exclusively contain our coi.")
+    parser.add_argument('--red_list_path', type=str, default="", help="Determines the path where the red list is saved")
+    parser.add_argument('--neighbour', action='store_false', help="Disable neighbour processing (default: True)")
+    parser.add_argument('--sib_factor', type=float, default=0.3, help="Sibling factor (default: 0.3)")
+    parser.add_argument('--coi', default='Physical > Substrate > Unconsolidated (soft) > Sand / mud (<2mm)', help="Class of Interest (default: 'Physical > Substrate > Unconsolidated (soft) > Sand / mud (<2mm)')")
+    parser.add_argument('--defined_name', default="", help="Additional string for the filename (default: '')")
+    parser.add_argument('--col_name', default='label_translated_lineage_names', help="Column name (default: 'label_translated_lineage_names')")
+    parser.add_argument('--norm_factor', type=int, default=1, help="Normalization factor (default: 1)")
+    parser.add_argument('--save_path', default="./Annotationsets/", help="Save path (default: './Annotationsets/')")
+    parser.add_argument('--annotationset_path', default='./Annotationsets/20240325_Full_Annotation_List.csv', help="Path where your annotation set is saved.")
+    return parser.parse_args()
 
 if __name__ == "__main__":
     pd.set_option("display.max_rows", 10, "display.max_columns", 10)
     
     print('Loading CSV file, this may take a while.')
+    args = get_args()
+    data = modify_annotation_set(args)
     
-    list_name = '/pvol/Annotationsets/Full_Annotationsets/20231002_803_Full_Annotation_List.csv'
+    csv_file_df= pd.read_csv(args.annotationset_path, on_bad_lines='skip', low_memory=False) 
     
-    csv_file_df= pd.read_csv(list_name, on_bad_lines='skip', low_memory=False) 
-    
-    print('Loaded {} entries with filename: {}'.format(len(csv_file_df.index), list_name))
+    print('Loaded {} entries with filename: {}'.format(len(csv_file_df.index), args.annotationset_path))
 
     csv_file_df.columns = csv_file_df.columns.str.replace('[.]', '_', regex=True) #replace dots with underscores
 
@@ -264,7 +265,7 @@ if __name__ == "__main__":
     #values = {"label_translated_name": 'Not of Interest'}
     #csv_file_df = csv_file_df.fillna(value=values)
     
-    data = modify_annotation_set()
+    
 
     # Deletes entries that should not be used (e.g. "Flagged for Review") 
     csv_file_df = data.delete_review(csv_file_df)

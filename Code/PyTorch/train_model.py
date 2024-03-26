@@ -30,13 +30,14 @@ from os import listdir
 writer = SummaryWriter()
 
 class CSV_Dataset(Dataset):
-    def __init__(self, test_list, test, inception, csv_data_path, csv_file_df):
+    def __init__(self, test_list, test, inception, csv_data_path, csv_file_df, img_path):
         self.test_indicator = test
         self.csv_data_path = csv_data_path
+        self.img_path = img_path
         self.inception = inception
         self.csv_file_df =csv_file_df
         self.class_map = {one_word_label : 1, "Others": 0}
-        compare_dir_csv(self, csv_data_path)
+        compare_dir_csv(self, csv_data_path, img_path)
         # Add unpadded and padded entries to data
 
     def __len__(self):
@@ -44,7 +45,7 @@ class CSV_Dataset(Dataset):
         return self.csv_file_df.shape[0]    
     
     def __getitem__(self, idx):
-        img_path = str(re.sub(r'(.*)/.*', '\\1', self.csv_data_path)) + '/All_Images/' +self.csv_file_df.file_name.iloc[idx]
+        img_path = self.img_path +self.csv_file_df.file_name.iloc[idx]
         class_id = torch.tensor(0)
         # make everything a string in the col
         self.csv_file_df[col_name] = self.csv_file_df[col_name].astype(str)
@@ -121,7 +122,7 @@ class CSV_Dataset(Dataset):
         return img_tensor, class_id
     
 class KelpClassifier(pl.LightningModule):
-    def __init__(self, backbone_name, no_filters, LEARNING_RATE ,trainer, trial, img_size, batch_size): #dropout, learning_rate, 
+    def __init__(self, backbone_name, no_filters, LEARNING_RATE ,trainer, trial, img_size, batch_size, acc_val): #dropout, learning_rate, 
         super().__init__()
         # init a pretrained resnet
         self.csv_test_results = [[],[],[],[],[],[],[],[]]
@@ -134,6 +135,7 @@ class KelpClassifier(pl.LightningModule):
         self.hparams.learning_rate = LEARNING_RATE
         self.accuracy = torchmetrics.Accuracy(task='binary')
         self.backbone_name = backbone_name
+        self.acc_val = acc_val
         backbone = getattr(models, backbone_name)(weights='DEFAULT')
         #implementing inception_v3
 
@@ -205,14 +207,14 @@ class KelpClassifier(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         x, y = batch
-        metrics, loss, f1_score, top_eck_p,top_class, res_y, prob = analyze_pred(self,x, y)
+        metrics, loss, f1_score, top_eck_p,top_class, res_y, prob = analyze_pred(self,x, y, self.acc_val)
         for i, metric in enumerate(metrics):
             self.training_losses[i].append(metric)
         return loss
     
     def validation_step(self, batch, batch_idx):
         x, y = batch
-        metrics, loss, f1_score, top_eck_p, top_class, res_y, prob = analyze_pred(self,x, y)
+        metrics, loss, f1_score, top_eck_p, top_class, res_y, prob = analyze_pred(self,x, y, self.acc_val)
         for i, metric in enumerate(metrics):
             self.valid_losses[i].append(metric)
         # only log when not sanity checking
@@ -223,7 +225,7 @@ class KelpClassifier(pl.LightningModule):
     
     def test_step(self, batch, batch_idx):
         x, y = batch
-        metrics, loss, f1_score,top_eck_p, top_class, res_y, prob = analyze_pred(self,x, y)
+        metrics, loss, f1_score,top_eck_p, top_class, res_y, prob = analyze_pred(self,x, y, self.acc_val)
         #metrics=[loss.item(), accuracy.item(), TP, TN, FP, FN]
         for i, metric in enumerate(metrics):
             self.test_losses[i].append(metric)
@@ -352,16 +354,17 @@ def get_crop_points(self, x, y, original_image, img_size):
 
     return  int(x0), int(x1), int(y0), int(y1)
 
-def compare_dir_csv(self, csv_path):
+def compare_dir_csv(self, csv_path, img_path):
     # Suppress Warning
     pd.set_option('mode.chained_assignment', None)
 
     #csv_path = csv_path.replace(r'(.*)/.*', '\\1', regex=True).astype('str')
-    img_path = str(re.sub(r'(.*)/.*', '\\1', csv_path)) + '/All_Images/' 
     # delete every kind of ending that corresponds to jpg in the web address
     self.csv_file_df.columns = self.csv_file_df.columns.str.replace('[.]', '_', regex=True)
 
-    self.csv_file_df['file_name'] = self.csv_file_df.point_media_path_best.str.replace(r'(.*)\.(?i)jpg.?', '\\1', regex=True).astype('str')
+    #self.csv_file_df['file_name'] = self.csv_file_df.point_media_path_best.str.replace(r'(.*)\.(?i)jpg.?', '\\1', regex=True).astype('str')
+    self.csv_file_df['file_name'] = self.csv_file_df.point_media_path_best.str.replace(r'(?i)(.*)\.jpg\.?', '\\1', regex=True).astype('str')
+
     # delete everything before the last '/' in the web address
     self.csv_file_df.file_name = self.csv_file_df.file_name.str.replace(r'.*/(.*)', '\\1', regex=True).astype('str')
     # replace all irregular characters with '_' in the web address
@@ -412,7 +415,7 @@ def get_acc_prec_rec_f1(self, metric):
         f1_score = 2*(precision*recall)/(precision+recall)
     return accuracy, precision, recall, f1_score
 
-def analyze_pred(self,x,y):
+def analyze_pred(self,x,y, acc_val):
         y_hat = self(x)
         prob = F.softmax(y_hat, dim=1)
         loss = F.cross_entropy(y_hat, y)
@@ -447,7 +450,10 @@ def analyze_pred(self,x,y):
                     FN += 1
                     self.roc_curve[3].append(top_og[i].item())
             else: print('Error with prediction')
-        f1_metric = BinaryF1Score().to('cuda')
+        if acc_val == "gpu":
+            f1_metric = BinaryF1Score().to('cuda')
+        else:
+            f1_metric = BinaryF1Score()
         f1_score = f1_metric(top_class, y)
         #prec_metric = BinaryPrecision().to('cuda')
         #prec_score = prec_metric(top_class, y)
@@ -466,19 +472,19 @@ def get_args():
 
     parser.add_argument('--limit_train_batches', metavar='ltrb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.01) #!
 
-    parser.add_argument('--limit_val_batches', metavar='lvb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.01) #!
+    parser.add_argument('--limit_val_batches', metavar='lvb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.3) #!
 
     parser.add_argument('--limit_test_batches', metavar='lteb', type=float, help='Limits the amount of entries in the trainer for debugging purposes', default=0.1) #!
 
     parser.add_argument('--epochs', metavar='epochs', type=int, help='The number of epochs the algorithm trains', default=1) #!
 
-    parser.add_argument('--log_path', metavar='log_path', type=str, help='The path where the logger files are saved', default='/pvol/logs/')
+    parser.add_argument('--log_path', metavar='log_path', type=str, help='The path where the logger files are saved', default='./Logs/')
 
     parser.add_argument('--log_name', metavar='log_name', type=str, help='Name of the experiment.', default='unnamed')
 
-    parser.add_argument('--img_path', metavar='img_path', type=str, help='Path to the database of images', default='/pvol/Final_Eck_1_to_10_Database/Original_images') #/pvol/Seagrass_Database/
+    parser.add_argument('--img_path', metavar='img_path', type=str, help='Path to the database of images', default='./Images/') #/pvol/Seagrass_Database/
 
-    parser.add_argument('--csv_path', metavar='csv_path', type=str, help='Path to the csv file describing the images', default='/pvol/Final_Eck_1_to_10_Database/Original_images/1210907_neighbour_Sand _ mud (_2mm)_list.csv')
+    parser.add_argument('--csv_path', metavar='csv_path', type=str, help='Path to the csv file describing the images', default='./Annotationsets/29219_neighbour_Sand _ mud (_2mm).csv')
     #/pvol/Final_Eck_1_to_10_Database/Original_images/22754_neighbour_Seagrass_cover_NMSC_list.csv
     #/pvol/Final_Eck_1_to_10_Database/Original_images/205282_neighbour_Hard_coral_cover_NMSC_list.csv
     #/pvol/Final_Eck_1_to_10_Database/Original_images/405405_neighbour_Macroalgal_canopy_cover_NMSC_list.csv
@@ -493,8 +499,7 @@ def get_args():
 
     parser.add_argument('--test_img_path', metavar='test_img_path', type=str, help='Path to the database of test images', default='/pvol/Ecklonia_Testbase/NSW_Broughton/')
 
-    parser.add_argument('--img_size', metavar='img_size', type=int, help=
-    'Defines the size of the used image.', default=299)
+    parser.add_argument('--img_size', metavar='img_size', type=int, help='Defines the size of the used image.', default=299)
     
     parser.add_argument('--crop_perc', metavar='crop_perc', type=float, help= 'Defines percentage that is used to crop the image.', default=0.16)
 
@@ -642,7 +647,7 @@ def objective(trial: optuna.trial.Trial) -> float:
     test_df1, test_df2, test_df3, train_val_set = get_test_sets(csv_file_df)
 
     #train_val_set = GeneralDataset(img_size, test_list, test = False, inception = inception, test_img_path = csv_path)
-    train_val_set = CSV_Dataset(test_list, test = False, inception = inception, csv_data_path = csv_path, csv_file_df=train_val_set)
+    train_val_set = CSV_Dataset(test_list, test = False, inception = inception, csv_data_path = csv_path, csv_file_df=train_val_set, img_path=img_path)
     
     global training_set, validation_set
     training_set, validation_set = torch.utils.data.random_split(train_val_set,[0.80, 0.20], generator=torch.Generator().manual_seed(4234))
@@ -677,7 +682,7 @@ def objective(trial: optuna.trial.Trial) -> float:
         precision=16,
         log_every_n_steps=50,
         #auto_scale_batch_size="binsearch",
-        auto_lr_find=False, #!
+        #auto_lr_find=False, #!
     )
     
     model = KelpClassifier(backbone_name, 
@@ -688,8 +693,9 @@ def objective(trial: optuna.trial.Trial) -> float:
                             #monitor ='f1_score', 
                             trainer= trainer,  
                             #pl_module = LightningModule, 
-                            img_size=img_size)
-    trainer.tune(model)
+                            img_size=img_size,
+                            acc_val=acc_val)
+    #trainer.tune(model)
     trainer.fit(model)
     
 
@@ -769,7 +775,7 @@ def objective(trial: optuna.trial.Trial) -> float:
     for idx ,test_set in enumerate([test_df1, test_df2, test_df3]):
         global path_label 
         path_label = idx
-        test_set = CSV_Dataset(test_list, test = True, inception=inception, csv_data_path=csv_path, csv_file_df=test_set)
+        test_set = CSV_Dataset(test_list, test = True, inception=inception, csv_data_path=csv_path, csv_file_df=test_set, img_path=img_path)
         # Just looks at one dataset
         test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=30)#os.cpu_count())
 
